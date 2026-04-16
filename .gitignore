@@ -1,0 +1,5 @@
+.env.local
+*.pem
+id_*
+hostinger_vps*
+.DS_Store
