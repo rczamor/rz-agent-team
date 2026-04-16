@@ -1,6 +1,17 @@
 -- agent_memory schema initialization
 -- Mirrors the design in Notion "Agent Memory & Context Management" page.
--- Apply against the agent_memory database on langfuse-postgres-1.
+--
+-- Target: dedicated `agent-memory-postgres` container on the VPS
+--   - Compose project: /docker/agent-memory/
+--   - Image: postgres:17
+--   - Bind: 127.0.0.1:54330 -> container 5432
+--   - Database: agent_memory
+--   - User: agent_memory (owner)
+--   - Password: see /docker/agent-memory/.env on the VPS (not committed)
+--
+-- Apply with:
+--   docker exec agent-memory-postgres psql -U agent_memory -d agent_memory \
+--     -v ON_ERROR_STOP=1 -f /tmp/init.sql
 
 CREATE SCHEMA IF NOT EXISTS agent_memory;
 
