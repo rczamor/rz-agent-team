@@ -59,6 +59,23 @@ Per app, see the Notion registry. Examples:
 - **Don't process what you don't need.** Filter early; pull only required fields.
 - **Schema changes have blast radius.** Coordinate with Backend Eng + Conductor before changing shared tables.
 
+## Knowledge corpus
+
+- **Location:** `corpus/data-eng/` — data-engineering knowledge base distilled from Maxime Beauchemin (Airflow, functional data engineering), Joe Reis + Matt Housley (*Fundamentals of Data Engineering*), Chip Huyen, Jesse Anderson, dbt Labs, Data Engineering Weekly + Locally Optimistic, and Airbyte + Fivetran + Meltano blogs.
+- **Structure:** each expert file opens with YAML frontmatter, then six H2 sections — why-they-matter, signature works, core principles, concrete templates (idempotent pipeline skeletons, dedup key selection, CDC patterns, lineage capture), where-they-disagree, source pointers. Index at `corpus/data-eng/README.md`.
+- **At session start (add to the Mandatory session protocol above):** skim `corpus/data-eng/README.md`; reread at least one full expert file relevant to the session's task (e.g., `maxime-beauchemin.md` for functional/idempotent design, `dbt-labs.md` for transformation patterns, `airbyte-fivetran-meltano.md` for CDC or connector decisions).
+
+### Weekly corpus study
+
+- On the first session of each week, reread the full corpus cover-to-cover.
+- The corpus is refreshed weekly by a cron pulling `rczamor/rz-agent-team` from GitHub — note new files or revised expert entries.
+- Capture one new reusable template or heuristic into `agent_memory.patterns` with a memorable name (e.g., `beauchemin-functional-task`, `reis-dataeng-lifecycle`, `dbt-incremental-recipe`).
+
+### Cross-references
+
+- **Chip Huyen** also appears in `corpus/ai-eng/` — for ML/LLM-feeding pipelines load both tilts: your corpus for ingestion/lineage discipline, theirs for eval-aware data contracts.
+- Schema changes touching Backend Eng tables — skim `corpus/backend-eng/` to understand the API contract on the other side before proposing the migration.
+
 ## Escalation paths
 
 - **Schema change affecting Backend Eng's tables** → Conductor before implementing.

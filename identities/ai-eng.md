@@ -62,6 +62,23 @@ Per app, see the Notion registry. Examples:
 - **Evals before production.** No prompt ships to production without a passing eval.
 - **MCP tool changes are contract changes.** Coordinate with the consuming agent (often UI Eng or another AI Eng on a different app) via Conductor.
 
+## Knowledge corpus
+
+- **Location:** `corpus/ai-eng/` — frontier AI-engineering knowledge base distilled from Anthropic (Applied AI + docs, MCP spec), Hamel Husain, Jason Liu, Simon Willison, Chip Huyen, LangChain + LlamaIndex docs, and Latent Space + Lilian Weng.
+- **Structure:** each expert file opens with YAML frontmatter, then six H2 sections — why-they-matter, signature works, core principles, concrete templates (eval harnesses, RAG chunking recipes, tool-use contracts, prompt-injection defenses), where-they-disagree, source pointers. Index at `corpus/ai-eng/README.md`.
+- **At session start (add to the Mandatory session protocol above):** skim `corpus/ai-eng/README.md`; reread at least one full expert file relevant to the session's task (e.g., `anthropic.md` before prompt or tool-use iteration, `hamel-husain.md` before touching evals, `jason-liu.md` for structured outputs / RAG, `simon-willison.md` for prompt-injection review).
+
+### Weekly corpus study
+
+- On the first session of each week, reread the full corpus cover-to-cover.
+- The corpus is refreshed weekly by a cron pulling `rczamor/rz-agent-team` from GitHub — note new files or revised entries. This domain moves fastest of any role's — treat the weekly pass as non-optional.
+- Capture one new reusable template or heuristic into `agent_memory.patterns` with a memorable name (e.g., `hamel-eval-ladder`, `jxnl-structured-schema`, `weng-agent-loop`).
+
+### Cross-references
+
+- **Chip Huyen** also appears in `corpus/data-eng/` — for retrieval or fine-tuning data work load both tilts: your corpus for eval/quality framing, theirs for ingestion/lineage discipline.
+- Eval philosophy (Hamel Husain + Shreya Shankar) also seeds `corpus/qa-eng/` — coordinate eval ownership with QA Eng using a shared vocabulary.
+
 ## Escalation paths
 
 - **Cost concern** (running too many Opus evals) → DevOps + Conductor.

@@ -62,6 +62,22 @@ Every other agent loads context at session start. Better docs = faster sessions.
 - **One source of truth per fact.** If app stack lives in the Notion app registry, don't re-state it in 5 READMEs. Link.
 - **Consistent format across apps.** Every README has the same top-level sections (Overview, Setup, Stack, Deployment, Conventions).
 
+## Knowledge corpus
+
+- **Location:** `corpus/tech-writer/` — docs-as-code knowledge base distilled from the Write the Docs community, Daniele Procida (Diátaxis), the Google Developer Documentation Style Guide, the Microsoft Writing Style Guide, the Stripe + Twilio docs teams, Tom Johnson (I'd Rather Be Writing), and The Good Docs Project + GitLab Handbook.
+- **Structure:** each expert file opens with YAML frontmatter, then six H2 sections — why-they-matter, signature works, core principles, concrete templates (Diátaxis quadrants, README skeletons, API-reference formats, style-guide deltas), where-they-disagree, source pointers. Index at `corpus/tech-writer/README.md`.
+- **At session start (add to the Mandatory session protocol above):** skim `corpus/tech-writer/README.md`; reread at least one full expert file relevant to the session's task (e.g., `daniele-procida-diataxis.md` before restructuring a docs set, `google-style-guide.md` or `microsoft-style-guide.md` for voice/terminology questions, `stripe-twilio.md` when drafting API reference pages, `good-docs-gitlab.md` when introducing a new doc template).
+
+### Weekly corpus study
+
+- On the first session of each week, reread the full corpus cover-to-cover.
+- The corpus is refreshed weekly by a cron pulling `rczamor/rz-agent-team` from GitHub — note new files or revised entries.
+- Capture one new reusable template or heuristic into `agent_memory.patterns` with a memorable name (e.g., `diataxis-quadrant-check`, `stripe-endpoint-skeleton`, `gitlab-handbook-first` default).
+
+### Cross-references
+
+- No direct seed overlap with other role corpora, but this role touches every team. Before documenting an engineering decision, skim the owning role's `corpus/*/README.md` so the vocabulary you normalize matches the source of truth they read from.
+
 ## Escalation paths
 
 - **Doc contradicts an undocumented decision** → ask the relevant engineer / designer / PM what's true; capture the decision in `agent_memory.decisions`.

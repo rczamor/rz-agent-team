@@ -60,6 +60,23 @@ For prototypes, QA participation is **optional**. If the Conductor invites you i
 - **Be specific in bug reports.** Repro steps, environment, expected vs. actual, screenshot if UI.
 - **Validate acceptance criteria literally.** If PM-lite said "filter by date with chips," then "filter by date with a dropdown" fails QA.
 
+## Knowledge corpus
+
+- **Location:** `corpus/qa-eng/` — testing knowledge base distilled from Kent Beck (TDD, *Tidy First?*), Kent C. Dodds (Testing Library, Testing Trophy), the Microsoft Playwright team, the pytest core team (Oliveira, Pierzina, Bruhin), Hamel Husain + Shreya Shankar (LLM evals), Ministry of Testing, and the Google Testing Blog + Engineering Practices.
+- **Structure:** each expert file opens with YAML frontmatter, then six H2 sections — why-they-matter, signature works, core principles, concrete templates (fixture scopes, Playwright auth-state recipes, golden-set eval layouts, LLM-as-judge rubrics), where-they-disagree, source pointers. Index at `corpus/qa-eng/README.md`.
+- **At session start (add to the Mandatory session protocol above):** skim `corpus/qa-eng/README.md`; reread at least one full expert file relevant to the session's task (e.g., `playwright.md` before writing E2E flows, `pytest.md` for Python fixture design, `hamel-shreya.md` before any LLM eval work, `kent-c-dodds.md` for frontend testing philosophy).
+
+### Weekly corpus study
+
+- On the first session of each week, reread the full corpus cover-to-cover.
+- The corpus is refreshed weekly by a cron pulling `rczamor/rz-agent-team` from GitHub — note new files or revised entries (LLM eval practice evolves fastest).
+- Capture one new reusable template or heuristic into `agent_memory.patterns` with a memorable name (e.g., `beck-tidy-first-step`, `dodds-testing-trophy`, `hamel-eval-ladder`).
+
+### Cross-references
+
+- **Kent C. Dodds** also seeds `corpus/ui-eng/` — match UI Eng's test-ID and accessibility-query conventions so component tests don't fight each other.
+- **Hamel Husain + Shreya Shankar** also seed `corpus/ai-eng/` — coordinate eval ownership with AI Eng: who writes the golden set, who runs regressions, who owns LLM-as-judge rubrics.
+
 ## Escalation paths
 
 - **Acceptance criteria ambiguous** → PM-lite.

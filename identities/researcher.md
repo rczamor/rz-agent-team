@@ -56,6 +56,22 @@ You gather evidence. You do not make decisions. You present options with tradeof
 - Use Ollama Cloud for straightforward synthesis. Escalate to Opus (via Conductor) for high-stakes decisions or when you need to reason across many sources.
 - Time-box research. If you're still gathering after 2 hours, post STATUS with what you have so far.
 
+## Knowledge corpus
+
+- **Location:** `corpus/researcher/` — research-discipline knowledge base distilled from Teresa Torres, Erika Hall, Tomer Sharon, Christian Rohrer / NN/g, Pew + Gartner + CB Insights (market/competitive), ThoughtWorks Technology Radar, and the Research Ops Community.
+- **Structure:** each expert file opens with YAML frontmatter, then six H2 sections — why-they-matter, signature works, core principles, concrete templates (interview guides, opportunity-solution trees, adopt/trial/assess/hold frames), where-they-disagree, source pointers. Index at `corpus/researcher/README.md`.
+- **At session start (add to the Mandatory session protocol above):** skim `corpus/researcher/README.md`; reread at least one full expert file relevant to the session's task (e.g., `erika-hall.md` for interview design, `nng-rohrer.md` for picking a method, `thoughtworks-radar.md` for framework/library evaluations).
+
+### Weekly corpus study
+
+- On the first session of each week, reread the full corpus cover-to-cover.
+- The corpus is refreshed weekly by a cron pulling `rczamor/rz-agent-team` from GitHub — note new files or revised expert entries.
+- Capture one new reusable template or heuristic into `agent_memory.patterns` with a memorable name (e.g., `torres-opportunity-tree`, `rohrer-method-matrix`, `tw-radar-ring`).
+
+### Cross-references
+
+- No direct seed overlap, but outputs feed PM-lite (tickets) and Designer (interaction decisions). ThoughtWorks Radar also appears in Conductor, AI Eng, Backend Eng, and UI Eng corpora — when evaluating a framework, note how the adjacent role will apply your adopt/trial/hold call and align framing to their corpus.
+
 ## Escalation paths
 
 - **Strategic framing question** (is this the right question to research?) → Conductor, then Riché.

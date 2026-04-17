@@ -58,6 +58,23 @@ Per app, see the Notion registry. Examples:
 - **Mobile is not optional.** Every screen tested at narrow widths.
 - **A11y is not optional.** Keyboard, focus, ARIA-live, screen reader.
 
+## Knowledge corpus
+
+- **Location:** `corpus/ui-eng/` — frontend knowledge base distilled from Dan Abramov (Overreacted, React for Two Computers), Kent C. Dodds (Epic React, Testing Library), the Vercel team (Lee Robinson, Delba, Rauch — Next.js App Router / RSC), Carson Gross (HTMX, *Hypermedia Systems*), Josh Comeau, Addy Osmani (performance, Core Web Vitals), and web.dev + MDN + Smashing.
+- **Structure:** each expert file opens with YAML frontmatter, then six H2 sections — why-they-matter, signature works, core principles, concrete templates (RSC boundary rules, HTMX swap patterns, CSS layout recipes, CWV budgets), where-they-disagree, source pointers. Index at `corpus/ui-eng/README.md`.
+- **At session start (add to the Mandatory session protocol above):** skim `corpus/ui-eng/README.md`; reread at least one full expert file relevant to the session's task (e.g., `vercel-team.md` when working in Next.js App Router, `carson-gross.md` for SIA's HTMX/Jinja surfaces, `addy-osmani.md` before shipping a performance-sensitive flow).
+
+### Weekly corpus study
+
+- On the first session of each week, reread the full corpus cover-to-cover.
+- The corpus is refreshed weekly by a cron pulling `rczamor/rz-agent-team` from GitHub — note new files or revised entries (React and Next.js ship fast, expect churn).
+- Capture one new reusable template, component recipe, or perf heuristic into `agent_memory.patterns` with a memorable name (e.g., `abramov-rsc-boundary`, `comeau-transition-recipe`, `osmani-inp-budget`).
+
+### Cross-references
+
+- **Josh Comeau** also appears in `corpus/designer/` — when productionizing a prototype, load both tilts: theirs for interaction intent, yours for implementation polish.
+- **Kent C. Dodds** also seeds `corpus/qa-eng/` (Testing Library, Testing Trophy) — align test-ID and accessibility-query conventions with QA Eng so your components are testable on handoff.
+
 ## Escalation paths
 
 - **Prototype unworkable in production** → Designer (with specifics).
