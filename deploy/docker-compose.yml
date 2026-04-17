@@ -1,0 +1,729 @@
+# ==============================================================================
+# agent-team :: unified docker-compose
+# ------------------------------------------------------------------------------
+# Canonical deployment artifact for the full agent-team stack on the Hostinger
+# VPS (srv1535988, "delightful-crystal", 187.124.155.172, Ubuntu 24.04).
+#
+# What lives here:
+#   * 11 named OpenClaw instances (one per role), port block 47810-47820
+#   * paperclip (Hostinger HVPS support sidecar)
+#   * Langfuse v3 observability stack (web + worker + postgres + redis +
+#     clickhouse + minio)
+#   * agent-memory postgres (shared long-term memory for all agents)
+#   * ollama (embedding-only: nomic-embed-text)
+#   * cloudbeaver (web DB GUI, fronted by Traefik)
+#   * traefik (single public reverse proxy for paperclip, langfuse-web,
+#     cloudbeaver)
+#
+# What DOES NOT live here:
+#   * n8n         -- scheduled for removal per CAR-327
+#   * sia-engine  -- user app, lives at /opt/sia and not part of this stack
+#   * monarx-agent -- Hostinger-managed systemd service, not a container
+#
+# Design notes:
+#   * ONE file, no override files, so the whole topology is readable at a
+#     glance. Per-role divergence is tiny and expressed via env vars.
+#   * OpenClaw services share nearly everything -- we use a YAML anchor
+#     (x-openclaw-common) to avoid 11x duplication.
+#   * Env vars use ${VAR} form and are defined in ./.env (see .env.example).
+#     Defaults via ${VAR:-default} only where a sane default exists.
+#   * Memory sizing targets ~10 GiB peak of the 15 GiB box so the OS + any
+#     one-off `docker stats`-worthy spike has headroom.
+# ==============================================================================
+
+version: "3.9"
+
+# ------------------------------------------------------------------------------
+# YAML anchors
+# ------------------------------------------------------------------------------
+# x-openclaw-common: everything that is identical across the 11 role
+# instances. Per-instance blocks below merge this in with `<<: *openclaw-common`
+# and then add their own: container_name, ports, volumes, and AGENT_ROLE /
+# AGENT_SLACK_BOT_TOKEN env. Model tier (Opus vs workhorse) is NOT set here --
+# it is picked per-role by the AGENT_MODEL_TIER env var set in each service
+# block, so the anchor stays generic.
+x-openclaw-common: &openclaw-common
+  image: ghcr.io/hostinger/hvps-openclaw:latest
+  restart: unless-stopped
+  mem_limit: 800m
+  networks:
+    - agent-team_default
+    - agent-memory_internal
+    - langfuse_internal
+  environment:
+    # ---- LLM access -----------------------------------------------------------
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+    OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+    # ---- Observability (Langfuse) --------------------------------------------
+    LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+    LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+    LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+    # ---- Long-term memory -----------------------------------------------------
+    # DSN points at the agent-memory postgres over the internal network.
+    AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+    # ---- Embedding provider (local ollama, embed-only) -----------------------
+    EMBEDDING_BASE_URL: http://ollama:11434
+    EMBEDDING_MODEL: nomic-embed-text
+  healthcheck:
+    # The hvps-openclaw image exposes /health on its HTTP listener.
+    test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+  depends_on:
+    agent-memory:
+      condition: service_healthy
+    langfuse-web:
+      condition: service_started
+    ollama:
+      condition: service_started
+
+services:
+
+  # ============================================================================
+  # OpenClaw instances (11 roles) -- port block 47810..47820
+  # ----------------------------------------------------------------------------
+  # Each service mounts two host directories:
+  #   ./openclaw/{role}/data    -> /data                                 (state)
+  #   ./openclaw/{role}/corpus  -> /data/.openclaw/workspace/corpus      (RAG)
+  # The `corpus` mount is populated by `scripts/build-corpus.sh` from
+  # repo/corpus-directory.md seeds; `data` persists chats, tool state, etc.
+  #
+  # OPUS PRIMARY roles (Conductor + AI Eng) use the higher-tier Anthropic
+  # quota and are marked via AGENT_MODEL_TIER=opus. All other roles run
+  # workhorse on Ollama Cloud with Anthropic escalation (tier=workhorse).
+  # ============================================================================
+
+  # ---- Conductor (OPUS PRIMARY) -------------------------------------------
+  # Orchestrator. Reads Linear, routes work, never writes production code.
+  openclaw-conductor:
+    <<: *openclaw-common
+    container_name: openclaw-conductor
+    ports:
+      - "47810:8080"
+    volumes:
+      - ./openclaw/conductor/data:/data
+      - ./openclaw/conductor/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: conductor
+      AGENT_MODEL_TIER: opus
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_CONDUCTOR}
+
+  # ---- PM ------------------------------------------------------------------
+  # Product manager. Turns fuzzy asks into specs, tracks acceptance criteria.
+  openclaw-pm:
+    <<: *openclaw-common
+    container_name: openclaw-pm
+    ports:
+      - "47811:8080"
+    volumes:
+      - ./openclaw/pm/data:/data
+      - ./openclaw/pm/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: pm
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_PM}
+
+  # ---- Researcher ----------------------------------------------------------
+  # Desk research, competitive scans, structured summaries.
+  openclaw-researcher:
+    <<: *openclaw-common
+    container_name: openclaw-researcher
+    ports:
+      - "47812:8080"
+    volumes:
+      - ./openclaw/researcher/data:/data
+      - ./openclaw/researcher/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: researcher
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_RESEARCHER}
+
+  # ---- Designer ------------------------------------------------------------
+  # Product/UX design: flows, wireframes, critique, handoffs.
+  openclaw-designer:
+    <<: *openclaw-common
+    container_name: openclaw-designer
+    ports:
+      - "47813:8080"
+    volumes:
+      - ./openclaw/designer/data:/data
+      - ./openclaw/designer/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: designer
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_DESIGNER}
+
+  # ---- Backend Engineer ----------------------------------------------------
+  # Server-side code, APIs, data models.
+  openclaw-backend-eng:
+    <<: *openclaw-common
+    container_name: openclaw-backend-eng
+    ports:
+      - "47814:8080"
+    volumes:
+      - ./openclaw/backend-eng/data:/data
+      - ./openclaw/backend-eng/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: backend-eng
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_BACKEND_ENG}
+
+  # ---- Data Engineer -------------------------------------------------------
+  # Pipelines, Airflow, warehouse, dbt, lineage.
+  openclaw-data-eng:
+    <<: *openclaw-common
+    container_name: openclaw-data-eng
+    ports:
+      - "47815:8080"
+    volumes:
+      - ./openclaw/data-eng/data:/data
+      - ./openclaw/data-eng/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: data-eng
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_DATA_ENG}
+
+  # ---- AI Engineer (OPUS PRIMARY) ------------------------------------------
+  # Agent/LLM systems work. Opus tier for the hard reasoning tasks.
+  openclaw-ai-eng:
+    <<: *openclaw-common
+    container_name: openclaw-ai-eng
+    ports:
+      - "47816:8080"
+    volumes:
+      - ./openclaw/ai-eng/data:/data
+      - ./openclaw/ai-eng/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: ai-eng
+      AGENT_MODEL_TIER: opus
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_AI_ENG}
+
+  # ---- UI Engineer ---------------------------------------------------------
+  # Frontend components, React/Tailwind, design-system work.
+  openclaw-ui-eng:
+    <<: *openclaw-common
+    container_name: openclaw-ui-eng
+    ports:
+      - "47817:8080"
+    volumes:
+      - ./openclaw/ui-eng/data:/data
+      - ./openclaw/ui-eng/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: ui-eng
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_UI_ENG}
+
+  # ---- QA Engineer ---------------------------------------------------------
+  # Test plans, automation suites, bug triage.
+  openclaw-qa-eng:
+    <<: *openclaw-common
+    container_name: openclaw-qa-eng
+    ports:
+      - "47818:8080"
+    volumes:
+      - ./openclaw/qa-eng/data:/data
+      - ./openclaw/qa-eng/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: qa-eng
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_QA_ENG}
+
+  # ---- DevOps Engineer -----------------------------------------------------
+  # Infra, deploy, Docker, VPS care. This is the role that manages THIS file.
+  openclaw-devops-eng:
+    <<: *openclaw-common
+    container_name: openclaw-devops-eng
+    ports:
+      - "47819:8080"
+    volumes:
+      - ./openclaw/devops-eng/data:/data
+      - ./openclaw/devops-eng/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: devops-eng
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_DEVOPS_ENG}
+
+  # ---- Tech Writer ---------------------------------------------------------
+  # Docs, READMEs, release notes, runbooks.
+  openclaw-tech-writer:
+    <<: *openclaw-common
+    container_name: openclaw-tech-writer
+    ports:
+      - "47820:8080"
+    volumes:
+      - ./openclaw/tech-writer/data:/data
+      - ./openclaw/tech-writer/corpus:/data/.openclaw/workspace/corpus
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama.com}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: nomic-embed-text
+      AGENT_ROLE: tech-writer
+      AGENT_MODEL_TIER: workhorse
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_TECH_WRITER}
+
+  # ============================================================================
+  # Paperclip -- Hostinger HVPS support sidecar
+  # ----------------------------------------------------------------------------
+  # Routes platform-level requests (e.g. account billing questions) to the
+  # right Hostinger backend. Fronted by Traefik at paperclip.${PUBLIC_DOMAIN}.
+  # ============================================================================
+  paperclip:
+    image: ghcr.io/hostinger/hvps-paperclip:latest
+    container_name: paperclip
+    restart: unless-stopped
+    mem_limit: 400m
+    networks:
+      - agent-team_default
+    environment:
+      PAPERCLIP_TOKEN: ${PAPERCLIP_TOKEN}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.paperclip.rule=Host(`paperclip.${PUBLIC_DOMAIN}`)"
+      - "traefik.http.routers.paperclip.entrypoints=websecure"
+      - "traefik.http.routers.paperclip.tls.certresolver=letsencrypt"
+      - "traefik.http.services.paperclip.loadbalancer.server.port=3100"
+
+  # ============================================================================
+  # Langfuse v3 -- LLM observability
+  # ----------------------------------------------------------------------------
+  # Web UI + async worker, backed by its own Postgres, Redis, ClickHouse, and
+  # MinIO. These four are INTERNAL to the langfuse stack -- only langfuse-web
+  # and langfuse-worker talk to them, so they stay on langfuse_internal.
+  # Web is the only piece exposed to the public via Traefik.
+  # ============================================================================
+
+  langfuse-web:
+    image: langfuse/langfuse:3
+    container_name: langfuse-web
+    restart: unless-stopped
+    mem_limit: 2g
+    networks:
+      - agent-team_default
+      - langfuse_internal
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_started
+      langfuse-clickhouse:
+        condition: service_started
+      langfuse-minio:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD}@langfuse-postgres:5432/langfuse
+      NEXTAUTH_URL: https://langfuse.${PUBLIC_DOMAIN}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: "false"
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      REDIS_CONNECTION_STRING: redis://langfuse-redis:6379
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/public/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.langfuse.rule=Host(`langfuse.${PUBLIC_DOMAIN}`)"
+      - "traefik.http.routers.langfuse.entrypoints=websecure"
+      - "traefik.http.routers.langfuse.tls.certresolver=letsencrypt"
+      - "traefik.http.services.langfuse.loadbalancer.server.port=3000"
+
+  langfuse-worker:
+    # Async worker processes the event queue written by langfuse-web. Heavy
+    # jobs (large trace ingestion, eval runs) land here instead of blocking
+    # the UI process.
+    image: langfuse/langfuse-worker:3
+    container_name: langfuse-worker
+    restart: unless-stopped
+    mem_limit: 1500m
+    networks:
+      - langfuse_internal
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_started
+      langfuse-clickhouse:
+        condition: service_started
+      langfuse-minio:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD}@langfuse-postgres:5432/langfuse
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: "false"
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      REDIS_CONNECTION_STRING: redis://langfuse-redis:6379
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+
+  langfuse-postgres:
+    image: postgres:17
+    container_name: langfuse-postgres
+    restart: unless-stopped
+    mem_limit: 1g
+    networks:
+      - langfuse_internal
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD}
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-redis:
+    image: redis:7-alpine
+    container_name: langfuse-redis
+    restart: unless-stopped
+    mem_limit: 256m
+    networks:
+      - langfuse_internal
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  langfuse-clickhouse:
+    # ClickHouse backs Langfuse v3's high-volume trace store. It is
+    # memory-hungry; keep the limit generous so ingestion bursts don't OOM.
+    image: clickhouse/clickhouse-server:24.3
+    container_name: langfuse-clickhouse
+    restart: unless-stopped
+    mem_limit: 1500m
+    networks:
+      - langfuse_internal
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: ${LANGFUSE_CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  langfuse-minio:
+    # S3-compatible blob storage for event payloads too large for postgres.
+    image: minio/minio:latest
+    container_name: langfuse-minio
+    restart: unless-stopped
+    mem_limit: 512m
+    networks:
+      - langfuse_internal
+    environment:
+      MINIO_ROOT_USER: ${LANGFUSE_MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_ROOT_PASSWORD}
+    command: server --console-address ":9090" /data
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Agent memory -- dedicated Postgres 17 for shared long-term memory
+  # ----------------------------------------------------------------------------
+  # All 11 OpenClaw instances write/read here via AGENT_MEMORY_DSN. Kept
+  # separate from langfuse-postgres so the observability DB and the agents'
+  # state DB can be scaled / backed up independently.
+  # Exposed on 127.0.0.1:54330 on the host for local tools (cloudbeaver,
+  # psql) -- NOT exposed to the public internet.
+  # ============================================================================
+  agent-memory:
+    image: postgres:17
+    container_name: agent-memory
+    restart: unless-stopped
+    mem_limit: 1g
+    networks:
+      - agent-memory_internal
+    ports:
+      - "127.0.0.1:54330:5432"
+    environment:
+      POSTGRES_USER: ${AGENT_MEMORY_USER:-agent_memory}
+      POSTGRES_PASSWORD: ${AGENT_MEMORY_PASSWORD}
+      POSTGRES_DB: ${AGENT_MEMORY_DB:-agent_memory}
+    volumes:
+      - agent_memory_data:/var/lib/postgresql/data
+      # Auto-run migrations on first boot. Mount is read-only so bad edits
+      # can't corrupt the seed directory.
+      - ../migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AGENT_MEMORY_USER:-agent_memory} -d ${AGENT_MEMORY_DB:-agent_memory}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Ollama -- EMBED ONLY
+  # ----------------------------------------------------------------------------
+  # Runs only `nomic-embed-text` locally. All generation goes to Ollama Cloud
+  # (https://ollama.com) via OLLAMA_HOST/OLLAMA_API_KEY on the openclaw side.
+  # This service exists so embeddings for RAG don't eat paid API budget.
+  # ============================================================================
+  ollama:
+    image: ollama/ollama:0.19.0
+    container_name: ollama
+    restart: unless-stopped
+    mem_limit: 512m
+    networks:
+      - agent-team_default
+    ports:
+      # Matches the host port used by the current ollama-apvg project so
+      # cutover is painless.
+      - "32768:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ============================================================================
+  # CloudBeaver -- browser DB GUI
+  # ----------------------------------------------------------------------------
+  # Lets the humans click around agent-memory / langfuse-postgres without
+  # opening psql. Fronted by Traefik at db.${PUBLIC_DOMAIN}. Joins both
+  # internal networks so connections to either DB just work.
+  # ============================================================================
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: cloudbeaver
+    restart: unless-stopped
+    mem_limit: 768m
+    networks:
+      - agent-team_default
+      - agent-memory_internal
+      - langfuse_internal
+    volumes:
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8978/status || exit 0"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cloudbeaver.rule=Host(`db.${PUBLIC_DOMAIN}`)"
+      - "traefik.http.routers.cloudbeaver.entrypoints=websecure"
+      - "traefik.http.routers.cloudbeaver.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cloudbeaver.loadbalancer.server.port=8978"
+
+  # ============================================================================
+  # Traefik -- single public reverse proxy
+  # ----------------------------------------------------------------------------
+  # Terminates TLS for paperclip, langfuse-web, and cloudbeaver via Let's
+  # Encrypt. The OpenClaw services are NOT publicly routed -- they're
+  # reachable only on the localhost port block 47810-47820 for ops use
+  # (SSH-tunnel into the box). Public-facing ingress goes through Slack +
+  # Langfuse only.
+  # ============================================================================
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: unless-stopped
+    mem_limit: 256m
+    networks:
+      - agent-team_default
+      - langfuse_internal
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--log.level=INFO"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# ------------------------------------------------------------------------------
+# Networks
+# ------------------------------------------------------------------------------
+# agent-team_default  : primary overlay for public-facing + cross-cutting services
+# langfuse_internal   : isolates langfuse DB/redis/clickhouse/minio from the
+#                       rest of the stack; only langfuse-web/worker, openclaw-*,
+#                       traefik, and cloudbeaver join it
+# agent-memory_internal : isolates agent-memory postgres; only openclaw-*
+#                         and cloudbeaver join it
+networks:
+  agent-team_default:
+    name: agent-team_default
+    driver: bridge
+  langfuse_internal:
+    name: langfuse_internal
+    driver: bridge
+    internal: false  # langfuse-web needs outbound (email, etc.)
+  agent-memory_internal:
+    name: agent-memory_internal
+    driver: bridge
+    internal: true   # DB traffic only, no egress needed
+
+# ------------------------------------------------------------------------------
+# Named volumes
+# ------------------------------------------------------------------------------
+# Per-role openclaw state is kept as HOST bind mounts (./openclaw/{role}/...)
+# for easy inspection + repo-driven corpus population -- see volumes block of
+# each openclaw-* service. Everything below is docker-managed: infra state that
+# nobody hand-edits.
+volumes:
+  agent_memory_data:
+  langfuse_postgres_data:
+  langfuse_clickhouse_data:
+  langfuse_clickhouse_logs:
+  langfuse_minio_data:
+  ollama_models:
+  cloudbeaver_data:
+  traefik_letsencrypt:
