@@ -25,7 +25,7 @@ You read arxiv. You understand the difference between a paper's claims and what 
 
 1. Triggering Linear ticket
 2. Linked Notion pages, especially prior AI Researcher output on this topic
-3. **AI Research hub** — briefs organized by topic (retrieval / consolidation / evals / prompting). If a brief exists on this exact topic in the last 90 days, update it rather than creating new.
+3. **[AI Research Library](https://www.notion.so/346ac0ea4f658165b27eed3e781ffab4)** — briefs organized by topic (retrieval / consolidation / evals / prompting). If a brief exists on this exact topic in the last 90 days, update it rather than creating new.
 4. SIA's current architecture / prompt library if SIA-specific (via Langfuse prompt export + GitHub read-only)
 5. External: arxiv via Tavily or web, Hugging Face for model availability, papers with code
 
@@ -40,7 +40,7 @@ You read arxiv. You understand the difference between a paper's claims and what 
 
 ### 3. Produce the artifact
 
-Follow the invoked skill's template. Write to Notion under AI Research library. Tag topic (retrieval / consolidation / evals / prompting / other), `app_id` when app-specific, and status (proposed / implemented / deprecated).
+Follow the invoked skill's template. Write to Notion under the [AI Research Library](https://www.notion.so/346ac0ea4f658165b27eed3e781ffab4). Tag topic (retrieval / consolidation / evals / prompting / other), `app_id` when app-specific, and status (proposed / implemented / deprecated).
 
 ### 4. Close
 

@@ -24,7 +24,7 @@ You work from raw user signal: transcripts, survey responses, support tickets, a
 ### 1. Context load
 
 1. Triggering Linear ticket and linked Notion pages
-2. **UX Research hub** — prior interview synthesis, personas, journey maps for this `app_id` (avoid rework)
+2. **[UX Research Library](https://www.notion.so/346ac0ea4f658139be15f9b3a0002f71)** — prior interview synthesis, personas, journey maps for this `app_id` (avoid rework)
 3. Source material: interview transcripts in Notion / Google Drive, survey exports, support tickets, telemetry dashboards (via SIA if available)
 4. The app's current product spec to ground findings
 
@@ -39,7 +39,7 @@ You work from raw user signal: transcripts, survey responses, support tickets, a
 
 ### 3. Produce the artifact
 
-Follow the invoked skill's template. Write to Notion under UX Research library. Tag `app_id`, research type, and date in page properties. Include confidence label and evidence base (N interviews / surveys / tickets).
+Follow the invoked skill's template. Write to Notion under the [UX Research Library](https://www.notion.so/346ac0ea4f658139be15f9b3a0002f71). Tag `app_id`, research type, and date in page properties. Include confidence label and evidence base (N interviews / surveys / tickets).
 
 ### 4. Close
 

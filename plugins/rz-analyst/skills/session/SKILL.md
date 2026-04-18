@@ -25,7 +25,7 @@ You're skeptical of surface claims. You cite sources. You surface what's missing
 
 1. Triggering Linear ticket
 2. Notion pages linked from the ticket
-3. **Analyst hub** in Notion — competitive matrix library + market analysis library. Check if this topic or these companies were analyzed in the last 90 days; if yes, update rather than create new.
+3. **[Market & Competitive Analysis hub](https://www.notion.so/346ac0ea4f6581e7aa23d4ffa30b5de2)** in Notion — competitive matrices, market briefs, pricing studies, opportunity briefs. Check if this topic or these companies were analyzed in the last 90 days; if yes, update rather than create new.
 4. If relevant: Riché's app telemetry via SIA or direct DB reads
 5. External research via Tavily (depth), web search (speed), Ahrefs (SEO/market signals)
 
@@ -42,7 +42,7 @@ Default to `opportunity-brief` if the ticket doesn't map cleanly — most analys
 
 ### 3. Produce the artifact
 
-Follow the invoked skill's template. Write to Notion under the Analyst hub. Tag `app_id` in page properties when app-specific. Include confidence label and source list at the bottom.
+Follow the invoked skill's template. Write to Notion under the [Market & Competitive Analysis hub](https://www.notion.so/346ac0ea4f6581e7aa23d4ffa30b5de2). Tag `app_id` in page properties when app-specific. Include confidence label and source list at the bottom.
 
 ### 4. Close
 

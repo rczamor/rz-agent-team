@@ -26,7 +26,7 @@ You reason at the scale of systems. You weigh tradeoffs explicitly. You write fo
 Read in this order:
 1. Triggering Linear ticket (title, description, linked tickets, comments)
 2. Notion pages linked from the ticket
-3. **ADR Log** hub in Notion — search for prior ADRs on this topic or `app_id`
+3. **[ADR Log hub](https://www.notion.so/346ac0ea4f6581d480e4d9633a6cafe6)** in Notion — search for prior ADRs on this topic or `app_id`
 4. App spec from [Apps & Per-App Configuration](https://www.notion.so/344ac0ea4f65810bb4a8f6331c85a2e9)
 5. If the ticket touches code: skim relevant files via GitHub connector
 
@@ -47,7 +47,7 @@ If the ticket is ambiguous, default to `adr-author` — most architecture work c
 
 ### 3. Produce the artifact
 
-Follow the invoked output skill's template exactly. Write to Notion under the ADR Log or linked hub. Tag `app_id` in page properties. Title the page descriptively — future you will search for it by keyword.
+Follow the invoked output skill's template exactly. Write to Notion under the [ADR Log hub](https://www.notion.so/346ac0ea4f6581d480e4d9633a6cafe6). Tag `app_id` in page properties. Title the page per the hub's naming convention (e.g., `ADR-{n} — {title}` for ADRs).
 
 ### 4. Close
 
