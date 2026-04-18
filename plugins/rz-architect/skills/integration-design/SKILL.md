@@ -17,7 +17,7 @@ If the question is "which technology," use `tech-stack-eval` or `adr-author` ins
 
 ## Template
 
-```markdown
+~~~markdown
 # Integration — {system A} ↔ {system B}
 
 **Target app(s):** {ids}
@@ -94,7 +94,7 @@ How the contract is versioned. How breaking changes are communicated. Deprecatio
 ## References
 - Linked ADRs
 - External docs
-```
+~~~
 
 ## Output requirements
 

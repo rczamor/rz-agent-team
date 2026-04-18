@@ -2,8 +2,8 @@
 # ==============================================================================
 # deploy-identities.sh
 # ------------------------------------------------------------------------------
-# Pushes identity + shared context to each of the 11 role-specific OpenClaw
-# instances on the Hostinger VPS. For each role:
+# Pushes identity + shared context to each OpenClaw instance on the Hostinger
+# VPS (10 core execution agents + @growth if deployed). For each role:
 #
 #   TEAM.md                 -> /docker/openclaw-<role>/data/.openclaw/workspace/TEAM.md
 #   USER.md                 -> /docker/openclaw-<role>/data/.openclaw/workspace/USER.md
@@ -42,7 +42,6 @@ CONNECT_SH="${CONNECT_SH:-$(cd "${REPO_ROOT}/.." && pwd)/connect.sh}"
 ROLES=(
   conductor
   pm
-  researcher
   designer
   backend-eng
   data-eng
@@ -51,7 +50,29 @@ ROLES=(
   qa-eng
   devops-eng
   tech-writer
+  growth
 )
+
+# Map OpenClaw instance slug (VPS dir /docker/openclaw-<slug>/) to the identity
+# file stem (identities/<stem>.md). Needed because a few instance names are
+# abbreviated relative to the identity filenames.
+declare -A IDENTITY_FILE=(
+  [conductor]=conductor
+  [pm]=pm-lite
+  [designer]=designer
+  [backend-eng]=backend-eng
+  [data-eng]=data-eng
+  [ai-eng]=ai-eng
+  [ui-eng]=ui-eng
+  [qa-eng]=qa-eng
+  [devops-eng]=devops-eng
+  [tech-writer]=tech-writer
+  [growth]=growth
+)
+
+# Note on retired roles: "researcher" was split into 4 Claude Code Routines
+# (rz-architect, rz-analyst, rz-ux-researcher, rz-ai-researcher) on 2026-04-17
+# and the openclaw-researcher instance was retired in CAR-356. Do not re-add.
 
 DRY_RUN=0
 NO_RESTART=0
@@ -188,12 +209,15 @@ for role in "${ROLES[@]}"; do
   skills_dir="${remote_base}/data/.openclaw/skills"
 
   # Check instance exists on VPS -- tolerate missing (target instances may not
-  # have been bootstrapped yet).
+  # have been bootstrapped yet; openclaw-growth is optional per CAR-367).
   if ! remote_dir_exists "$remote_base"; then
     log "$role" "instance-check" "skipped" "(no ${remote_base} on VPS)"
     continue
   fi
   log "$role" "instance-check" "ok"
+
+  # Resolve identity file stem (handles pm -> pm-lite.md).
+  identity_file="${IDENTITY_FILE[$role]:-$role}"
 
   # --- TEAM.md --------------------------------------------------------------
   if remote_rsync "${REPO_ROOT}/TEAM.md" "${workspace}/TEAM.md"; then
@@ -214,7 +238,7 @@ for role in "${ROLES[@]}"; do
   fi
 
   # --- IDENTITY.md ----------------------------------------------------------
-  identity_src="${REPO_ROOT}/identities/${role}.md"
+  identity_src="${REPO_ROOT}/identities/${identity_file}.md"
   if [[ ! -f "$identity_src" ]]; then
     log "$role" "identity-md" "skipped" "(no ${identity_src})"
   elif remote_rsync "$identity_src" "${workspace}/IDENTITY.md"; then

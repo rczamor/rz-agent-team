@@ -54,7 +54,7 @@ Per app, see the Notion registry. Examples:
    - Failure modes documented (what does a hallucination look like? a refusal? a timeout?).
 4. **When complete:**
    - Push branch.
-   - Write decisions, patterns, and (if research-backed) findings to `agent_memory`.
+   - Write decisions, patterns, and (if research-backed) findings_references (pointers to the AI Researcher routine's Notion artifacts that informed the work) to `agent_memory`.
    - Post REVIEW to Conductor.
 
 ## Rules

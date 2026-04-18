@@ -65,10 +65,12 @@ with langfuse.start_as_current_observation(name="rz-ai-researcher.session") as s
         metadata={"ticket_id": linear_ticket_id, "app_id": app_id},
     ):
         span.update(input={"ticket": linear_ticket_id})
+        # Pass the actual values computed during the session, not literals.
+        # Downstream Langfuse dashboards filter on recommendation and confidence.
         span.update(output={
             "artifact_url": notion_url,
-            "recommendation": "trial",
-            "confidence": "medium",
+            "recommendation": recommendation,  # one of: adopt, trial, hold, reject
+            "confidence": confidence_label,    # one of: low, medium, high
         })
 ```
 

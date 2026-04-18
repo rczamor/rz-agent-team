@@ -140,6 +140,17 @@ Both survive workflow executions but reset on workflow delete/recreate.
 
 All Slack nodes reference credential ID `REPLACE-WITH-SLACK-CRED-ID`. Create one Slack OAuth credential named **"Slack — #agent-team"** and replace the placeholder after import (use n8n's Find & Replace in the workflow JSON, or set each node via the UI).
 
+⚠️ **Activating before replacement silently suppresses all Slack alerts.** Every Slack node has `onError: continueRegularOutput`, so a bad credential reference won't break the main flow — but the alerts you rely on for routine-fire failures, reconciler recoveries, and drainer summaries will drop silently. **Replace the placeholder before activation.**
+
+Pre-import sanity check (run from the repo root before importing):
+
+```bash
+if grep -R "REPLACE-WITH-SLACK-CRED-ID" n8n/*.json; then
+  echo "❌ Slack credential placeholder still present — replace before activation"
+  exit 1
+fi
+```
+
 ## Expected Linear webhook payload shape
 
 ```json

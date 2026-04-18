@@ -91,9 +91,11 @@ What this surface does well. 2–3 bullets. Audits that only critique are miscal
 
 ## Hand-off
 
-For Designer: Findings marked Major or Catastrophic should trigger design iteration. File `type:engineering` ticket with prototype scope if approved by Riché.
+The routine does NOT file engineering tickets directly. Audits produce findings; solutions are Designer + Riché territory.
 
-For PM-lite: If the audit reveals a bigger problem (e.g., the whole surface's purpose is unclear), flag a strategic ticket rather than iterating on current surface.
+For Major/Catastrophic findings: the audit surfaces the problems and suggested directions. Designer reviews the audit and, with Riché's approval, decides whether to iterate the design (a `design-prototype/` branch) — at which point Designer files the ticket, not this routine.
+
+For findings that reveal a bigger product problem (e.g., the whole surface's purpose is unclear): flag in the Linear summary comment as a candidate for a `type:strategy-decision` ticket so Riché can decide whether to re-scope.
 
 ## Confidence: {low/medium/high}
 

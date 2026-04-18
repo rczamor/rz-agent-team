@@ -8,6 +8,73 @@ Authoritative design lives in Notion under [🤖 Agent Team](https://www.notion.
 
 Two layers, both session-based and human-triggered. **Strategic layer** = 4 Claude Code Routines (Technical Architect, Analyst, User Researcher, AI Researcher) running on Anthropic's cloud; they clone this repo and produce Notion artifacts. **Execution layer** = 10 OpenClaw instances on the Hostinger VPS (Conductor + PM-lite + Designer + Backend + Data + AI + UI + QA + DevOps + Tech Writer) plus `@growth` (narrow-scope exception for feature flags on prototypes). Riché fires work by setting a Linear ticket's status; n8n routes to the appropriate layer based on the `type:*` label.
 
+## Data flow
+
+```mermaid
+flowchart LR
+    subgraph "Human trigger"
+      R[Riché sets Linear ticket status]
+    end
+
+    subgraph "Routing"
+      R --> LW[Linear webhook]
+      LW --> N8N{n8n Linear Router}
+      N8N -->|"status = Ready for Claude routines"| TYPE{"type:* label"}
+      N8N -->|"status = Ready for agent build"| PC[Paperclip issue created]
+    end
+
+    subgraph "Strategic layer - Anthropic cloud"
+      TYPE -->|type:architect| ARCH[rz-architect routine]
+      TYPE -->|type:analyst| ANA[rz-analyst routine]
+      TYPE -->|type:ux| UX[rz-ux-researcher routine]
+      TYPE -->|type:research| AIR[rz-ai-researcher routine]
+      ARCH --> NOT[Notion hub writes]
+      ANA --> NOT
+      UX --> NOT
+      AIR --> NOT
+      ARCH --> LC[Linear ticket comment]
+      ANA --> LC
+      UX --> LC
+      AIR --> LC
+    end
+
+    subgraph "Execution layer - Hostinger VPS"
+      PC --> COND[Conductor picks up]
+      COND --> WORK[Worker agent: backend/data/ai/ui/qa/devops/tech-writer/designer/pm-lite]
+      WORK --> GH[git push to GitHub]
+      WORK --> LC
+      COND --> LC
+    end
+
+    subgraph "Reliability"
+      N8N -.->|on HTTP 429| DEF[deferred_fires queue]
+      DEF -.->|daily 00:05 UTC| DRAIN[Drainer workflow]
+      DRAIN -.-> ARCH & ANA & UX & AIR
+      RECON[Reconciler: every 15 min] -.->|catches missed webhooks| N8N
+    end
+
+    subgraph "Observability"
+      ARCH & ANA & UX & AIR & WORK -.->|traces| LF[Langfuse session_id = ticket_id]
+      WORK -.->|audit log| PC
+    end
+
+    style ARCH fill:#e1d5f7
+    style ANA fill:#bed9f7
+    style UX fill:#f8cfd9
+    style AIR fill:#cff0d4
+    style COND fill:#ffe5b8
+    style WORK fill:#ffe5b8
+    style LF fill:#f0f0f0
+    style PC fill:#f0f0f0
+    style NOT fill:#f0f0f0
+```
+
+Key properties:
+- The two layers never communicate directly — only through Notion artifacts + Linear ticket state.
+- Every LLM call is traced to Langfuse with `session_id = Linear ticket ID` (so all activity for one ticket groups in one Langfuse session).
+- The 15/day Max-plan routine cap is handled by n8n's `deferred_fires` queue + daily drainer; no work is lost.
+- The reconciler catches dropped Linear webhooks every 15 min by checking Paperclip / Linear-comment evidence of processing.
+
 ## Repo layout
 
 ```

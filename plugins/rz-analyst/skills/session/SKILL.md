@@ -67,7 +67,9 @@ with langfuse.start_as_current_observation(name="rz-analyst.session") as span:
         metadata={"ticket_id": linear_ticket_id, "app_id": app_id},
     ):
         span.update(input={"ticket": linear_ticket_id})
-        span.update(output={"artifact_url": notion_url, "confidence": "medium"})
+        # Pass the actual confidence label computed during the session, not a literal "medium".
+        # Downstream Langfuse dashboards filter on this field.
+        span.update(output={"artifact_url": notion_url, "confidence": confidence_label})
 ```
 
 ## Linear summary comment template

@@ -88,9 +88,11 @@ Areas the field hasn't addressed well. Sometimes gaps are opportunities; sometim
 
 ## Recommended follow-ups
 
-- **Method eval:** If {technique X} is worth a deeper look → file `type:research` ticket
-- **Ablation study:** If we want to test {specific variant} → file ticket
-- **Implementation:** If {technique Y} is adoption-ready → hand to AI Engineer via `type:engineering`
+Research follow-ups re-invoke the AI Researcher routine; implementation follow-ups invoke the execution layer.
+
+- **Deeper method eval:** If {technique X} warrants detailed evaluation before adopting → file a new `type:research` ticket (re-invokes AI Researcher; session skill routes to `method-eval`).
+- **Ablation study:** If we want to test {specific variant isolation} → file a new `type:research` ticket (re-invokes AI Researcher; session skill routes to `ablation-study`).
+- **Implementation (handoff to AI Engineer):** If {technique Y} is adoption-ready and doesn't need more research → file `type:engineering` ticket for AI Engineer to prototype/ship.
 
 ## Sources
 

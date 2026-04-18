@@ -64,7 +64,8 @@ with langfuse.start_as_current_observation(name="rz-ux-researcher.session") as s
         metadata={"ticket_id": linear_ticket_id, "app_id": app_id},
     ):
         span.update(input={"ticket": linear_ticket_id})
-        span.update(output={"artifact_url": notion_url, "confidence": "medium"})
+        # Pass the actual confidence label computed during the session, not a literal "medium".
+        span.update(output={"artifact_url": notion_url, "confidence": confidence_label})
 ```
 
 ## Linear summary comment template

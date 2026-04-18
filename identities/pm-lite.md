@@ -30,7 +30,7 @@ You do NOT make strategic decisions. Riché owns product strategy. You execute a
 
 1. **At session start:**
    - Load the target app's config.
-   - Query `agent_memory.decisions`, `agent_memory.findings`, `agent_memory.blockers` filtered by `app_id IN ('{session_app}', 'global')`.
+   - Query `agent_memory.decisions`, `agent_memory.findings_references`, `agent_memory.blockers` filtered by `app_id IN ('{session_app}', 'global')`.
    - Read Notion app specs for the target app.
    - Post STATUS to the app's channel.
 2. **When drafting tickets:**

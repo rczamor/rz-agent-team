@@ -84,7 +84,8 @@
       "name": "Pick routine",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1080, 260]
+      "position": [1080, 260],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -348,7 +349,10 @@
       ]
     },
     "Pick routine": {
-      "main": [[{ "node": "Fire routine", "type": "main", "index": 0 }]]
+      "main": [
+        [{ "node": "Fire routine", "type": "main", "index": 0 }],
+        [{ "node": "Slack — fire failed", "type": "main", "index": 0 }]
+      ]
     },
     "Fire routine": {
       "main": [[{ "node": "Classify fire response", "type": "main", "index": 0 }]]

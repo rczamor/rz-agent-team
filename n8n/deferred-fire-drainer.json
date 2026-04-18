@@ -21,145 +21,40 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load deferred_fires from static data, expire anything older than 7 days,\n// and emit one item per entry for processing.\nconst staticData = $getWorkflowStaticData('global');\nstaticData.deferred_fires = staticData.deferred_fires || [];\n\nconst now = Date.now();\nconst sevenDays = 7 * 24 * 60 * 60 * 1000;\n\nconst expired = [];\nconst live = [];\nfor (const entry of staticData.deferred_fires) {\n  if (now - (entry.deferredAt || 0) > sevenDays) expired.push(entry);\n  else live.push(entry);\n}\nstaticData.deferred_fires = live;\n\nif (live.length === 0 && expired.length === 0) {\n  return [{ json: { empty: true, expired: [], live: [] } }];\n}\n\nreturn [{\n  json: {\n    empty: live.length === 0,\n    expired,\n    live,\n    total: live.length,\n  }\n}];"
+        "jsCode": "// Full drain pass in a single node to guarantee serial execution and true\n// stop-on-429. Emitting multiple items to downstream HTTP nodes runs in parallel\n// in n8n, which would break the FIFO cap-stop guarantee (see CAR-371 review).\n//\n// Behavior per entry (FIFO oldest first):\n//   200  → remove from queue, emit a 'drained' summary item for Linear comment\n//   429  → stop the pass; entry stays for next day\n//   other error → increment retryCount; drop only after 3 retries, emit 'failed'\n// Entries older than 7 days are expired at the top.\n\nconst staticData = $getWorkflowStaticData('global');\nstaticData.deferred_fires = staticData.deferred_fires || [];\n\nconst now = Date.now();\nconst sevenDays = 7 * 24 * 60 * 60 * 1000;\nconst MAX_RETRIES = 3;\n\n// Expire sweep.\nconst expired = [];\nconst live = [];\nfor (const entry of staticData.deferred_fires) {\n  if (now - (entry.deferredAt || 0) > sevenDays) expired.push(entry);\n  else live.push(entry);\n}\nlive.sort((a, b) => (a.deferredAt || 0) - (b.deferredAt || 0));\nstaticData.deferred_fires = live;\n\n// Collected results for downstream Slack + Linear comment nodes.\nconst drained = [];\nconst failed = [];\nlet stoppedAtCap = false;\n\nfor (const entry of [...live]) {\n  let resp;\n  try {\n    resp = await fetch(entry.routineUrl, {\n      method: 'POST',\n      headers: {\n        'Authorization': `Bearer ${entry.routineToken}`,\n        'anthropic-beta': 'experimental-cc-routine-2026-04-01',\n        'anthropic-version': '2023-06-01',\n        'Content-Type': 'application/json',\n      },\n      body: JSON.stringify({ text: entry.firePayloadText }),\n    });\n  } catch (err) {\n    // Network/DNS error — treat as transient, keep with retry count.\n    entry.retryCount = (entry.retryCount || 0) + 1;\n    if (entry.retryCount >= MAX_RETRIES) {\n      failed.push({ ...entry, reason: 'network', error: String(err) });\n      staticData.deferred_fires = staticData.deferred_fires.filter(e => e.issueId !== entry.issueId || e.deferredAt !== entry.deferredAt);\n    }\n    continue;\n  }\n\n  const status = resp.status;\n  let body;\n  try { body = await resp.json(); } catch { body = {}; }\n\n  if (status >= 200 && status < 300) {\n    // Success — remove from queue, record for Linear comment\n    staticData.deferred_fires = staticData.deferred_fires.filter(e => e.issueId !== entry.issueId || e.deferredAt !== entry.deferredAt);\n    drained.push({ ...entry, response: body });\n  } else if (status === 429) {\n    // Still at cap — stop processing; entry stays\n    stoppedAtCap = true;\n    break;\n  } else {\n    // Transient/other error — increment retry; drop after MAX_RETRIES\n    entry.retryCount = (entry.retryCount || 0) + 1;\n    if (entry.retryCount >= MAX_RETRIES) {\n      failed.push({ ...entry, reason: `http_${status}`, response: body });\n      staticData.deferred_fires = staticData.deferred_fires.filter(e => e.issueId !== entry.issueId || e.deferredAt !== entry.deferredAt);\n    }\n  }\n}\n\nreturn [{\n  json: {\n    drained,\n    failed,\n    expired,\n    stoppedAtCap,\n    remaining: (staticData.deferred_fires || []).length,\n    ts: new Date().toISOString(),\n  }\n}];"
       },
-      "id": "load-deferred",
-      "name": "Load + expire deferred",
+      "id": "drain-loop",
+      "name": "Drain loop (serial, stop on 429)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [420, 400]
     },
     {
       "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
-          "conditions": [
-            {
-              "id": "has-expired",
-              "leftValue": "={{ $json.expired.length }}",
-              "rightValue": 0,
-              "operator": { "type": "number", "operation": "gt" }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "// Emit one item per drained entry for Linear comment posting.\nconst drained = $input.first().json.drained || [];\nif (drained.length === 0) return [{ json: { _skip: true } }];\nreturn drained.map(d => ({ json: d }));"
       },
-      "id": "if-any-expired",
-      "name": "If any expired",
-      "type": "n8n-nodes-base.if",
+      "id": "emit-drained",
+      "name": "Emit per drained",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [640, 280]
-    },
-    {
-      "parameters": {
-        "channel": "#agent-team",
-        "text": "=❌ Deferred fires expired (>7 days unable to drain): {{ $json.expired.length }}\n{{ $json.expired.map(e => `• ${e.issueIdentifier} — ${e.issueTitle} (deferred ${new Date(e.deferredAt).toISOString().slice(0,10)})`).join('\\n') }}\n\nInvestigate the 15/day cap or these tickets manually.",
-        "otherOptions": {}
-      },
-      "id": "slack-expired",
-      "name": "Slack — expired",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [860, 220],
-      "credentials": {
-        "slackApi": {
-          "id": "REPLACE-WITH-SLACK-CRED-ID",
-          "name": "Slack — #agent-team"
-        }
-      },
-      "onError": "continueRegularOutput"
+      "position": [640, 260]
     },
     {
       "parameters": {
         "conditions": {
           "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
           "conditions": [
-            {
-              "id": "empty-check",
-              "leftValue": "={{ $json.empty }}",
-              "rightValue": true,
-              "operator": { "type": "boolean", "operation": "notEqual" }
-            }
+            { "id": "has-issueId", "leftValue": "={{ $json.issueId }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }
           ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "if-any-live",
-      "name": "If any live",
+      "id": "if-drained-not-empty",
+      "name": "If any drained",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [640, 520]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Emit one item per live deferred fire, FIFO (oldest first).\nconst input = $input.first().json;\nconst live = (input.live || []).slice().sort((a, b) => (a.deferredAt || 0) - (b.deferredAt || 0));\nreturn live.map(entry => ({ json: entry }));"
-      },
-      "id": "emit-per-entry",
-      "name": "Emit per entry (FIFO)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [860, 520]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $json.routineUrl }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{ $json.routineToken }}" },
-            { "name": "anthropic-beta", "value": "experimental-cc-routine-2026-04-01" },
-            { "name": "Content-Type", "value": "application/json" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: $json.firePayloadText }) }}",
-        "options": {
-          "timeout": 30000,
-          "response": {
-            "response": {
-              "neverError": true,
-              "fullResponse": true
-            }
-          }
-        }
-      },
-      "id": "try-fire",
-      "name": "Try fire",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1080, 520]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Classify the response: 200 → drained, 429 → still at cap, other → failed.\nconst entry = $('Emit per entry (FIFO)').item.json;\nconst resp = $input.first().json;\nconst status = resp.statusCode || resp.status || 0;\nconst staticData = $getWorkflowStaticData('global');\nstaticData.deferred_fires = staticData.deferred_fires || [];\n\nif (status === 200 || status === 201) {\n  // Remove from list\n  staticData.deferred_fires = staticData.deferred_fires.filter(e =>\n    !(e.issueId === entry.issueId && e.deferredAt === entry.deferredAt)\n  );\n  return [{ json: { ...entry, outcome: 'drained', response: resp.body } }];\n}\nif (status === 429) {\n  // Stay deferred — stop processing further entries this cycle\n  return [{ json: { ...entry, outcome: 'still-capped', response: resp.body } }];\n}\n// Other error: remove from list, alert. Dropping protects the list from unfixable entries.\nstaticData.deferred_fires = staticData.deferred_fires.filter(e =>\n  !(e.issueId === entry.issueId && e.deferredAt === entry.deferredAt)\n);\nreturn [{ json: { ...entry, outcome: 'failed', statusCode: status, response: resp.body } }];"
-      },
-      "id": "classify-response",
-      "name": "Classify response",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1300, 520]
-    },
-    {
-      "parameters": {
-        "dataType": "string",
-        "value1": "={{ $json.outcome }}",
-        "rules": {
-          "rules": [
-            { "value2": "drained", "outputKey": "drained" },
-            { "value2": "still-capped", "outputKey": "capped" },
-            { "value2": "failed", "outputKey": "failed" }
-          ]
-        }
-      },
-      "id": "switch-outcome",
-      "name": "Switch outcome",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
-      "position": [1520, 520]
+      "position": [860, 260]
     },
     {
       "parameters": {
@@ -174,26 +69,53 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `🟢 Deferred fire completed — ${$json.routineName} routine fired after cap reset.\\n\\nOriginally deferred at: ${new Date($json.deferredAt).toISOString()}`\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `🟢 Deferred fire completed — ${$json.routineName} routine fired after cap reset. Originally deferred at: ${new Date($json.deferredAt).toISOString()}`\n  }\n}) }}",
         "options": {}
       },
       "id": "linear-comment-drained",
       "name": "Linear comment — drained",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1740, 340]
+      "position": [1080, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Emit one item per failed entry for Slack alerts.\nconst failed = $input.first().json.failed || [];\nif (failed.length === 0) return [{ json: { _skip: true } }];\nreturn failed.map(f => ({ json: f }));"
+      },
+      "id": "emit-failed",
+      "name": "Emit per failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            { "id": "has-issueId-failed", "leftValue": "={{ $json.issueId }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-failed-not-empty",
+      "name": "If any failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [860, 440]
     },
     {
       "parameters": {
         "channel": "#agent-team",
-        "text": "=❌ Deferred fire failed: {{ $json.issueIdentifier }} — {{ $json.issueTitle }}\nStatus: {{ $json.statusCode }}\nResponse: {{ JSON.stringify($json.response).slice(0, 500) }}\nRemoved from queue.",
+        "text": "=❌ Deferred fire failed (dropped after 3 retries): {{ $json.issueIdentifier }} — {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nReason: {{ $json.reason }}\nResponse: {{ JSON.stringify($json.response || $json.error || '').slice(0, 300) }}",
         "otherOptions": {}
       },
       "id": "slack-failed",
       "name": "Slack — failed",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1740, 680],
+      "position": [1080, 440],
       "credentials": {
         "slackApi": {
           "id": "REPLACE-WITH-SLACK-CRED-ID",
@@ -204,25 +126,51 @@
     },
     {
       "parameters": {
-        "jsCode": "// Summary Slack post at the end. Reads final static data to count what's drained.\nconst staticData = $getWorkflowStaticData('global');\nconst remaining = (staticData.deferred_fires || []).length;\nreturn [{ json: { remaining, ts: new Date().toISOString() } }];"
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            { "id": "has-expired", "leftValue": "={{ $json.expired.length }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "summary",
-      "name": "Summary",
-      "type": "n8n-nodes-base.code",
+      "id": "if-any-expired",
+      "name": "If any expired",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [2180, 520]
+      "position": [640, 580]
     },
     {
       "parameters": {
         "channel": "#agent-team",
-        "text": "=🟢 Deferred-fire drainer ran at {{ $json.ts }}. Remaining in queue: {{ $json.remaining }}",
+        "text": "=❌ Deferred fires expired (>7 days unable to drain): {{ $json.expired.length }}\n{{ $json.expired.map(e => `• ${e.issueIdentifier} — ${e.issueTitle} (deferred ${new Date(e.deferredAt).toISOString().slice(0,10)})`).join('\\n') }}\n\nInvestigate the 15/day cap or these tickets manually.",
+        "otherOptions": {}
+      },
+      "id": "slack-expired",
+      "name": "Slack — expired",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [860, 580],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=🟢 Deferred-fire drainer ran at {{ $json.ts }}. Drained: {{ $json.drained.length }}, Failed: {{ $json.failed.length }}, Expired: {{ $json.expired.length }}, Remaining: {{ $json.remaining }}{{ $json.stoppedAtCap ? ' — stopped at cap (more to drain tomorrow).' : '' }}",
         "otherOptions": {}
       },
       "id": "slack-summary",
       "name": "Slack — summary",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [2400, 520],
+      "position": [640, 700],
       "credentials": {
         "slackApi": {
           "id": "REPLACE-WITH-SLACK-CRED-ID",
@@ -234,50 +182,39 @@
   ],
   "connections": {
     "Daily 00:05 UTC": {
-      "main": [[{ "node": "Load + expire deferred", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Drain loop (serial, stop on 429)", "type": "main", "index": 0 }]]
     },
-    "Load + expire deferred": {
+    "Drain loop (serial, stop on 429)": {
       "main": [[
+        { "node": "Emit per drained", "type": "main", "index": 0 },
+        { "node": "Emit per failed", "type": "main", "index": 0 },
         { "node": "If any expired", "type": "main", "index": 0 },
-        { "node": "If any live", "type": "main", "index": 0 }
+        { "node": "Slack — summary", "type": "main", "index": 0 }
       ]]
+    },
+    "Emit per drained": {
+      "main": [[{ "node": "If any drained", "type": "main", "index": 0 }]]
+    },
+    "If any drained": {
+      "main": [
+        [{ "node": "Linear comment — drained", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Emit per failed": {
+      "main": [[{ "node": "If any failed", "type": "main", "index": 0 }]]
+    },
+    "If any failed": {
+      "main": [
+        [{ "node": "Slack — failed", "type": "main", "index": 0 }],
+        []
+      ]
     },
     "If any expired": {
       "main": [
         [{ "node": "Slack — expired", "type": "main", "index": 0 }],
         []
       ]
-    },
-    "If any live": {
-      "main": [
-        [{ "node": "Emit per entry (FIFO)", "type": "main", "index": 0 }],
-        [{ "node": "Summary", "type": "main", "index": 0 }]
-      ]
-    },
-    "Emit per entry (FIFO)": {
-      "main": [[{ "node": "Try fire", "type": "main", "index": 0 }]]
-    },
-    "Try fire": {
-      "main": [[{ "node": "Classify response", "type": "main", "index": 0 }]]
-    },
-    "Classify response": {
-      "main": [[{ "node": "Switch outcome", "type": "main", "index": 0 }]]
-    },
-    "Switch outcome": {
-      "main": [
-        [{ "node": "Linear comment — drained", "type": "main", "index": 0 }],
-        [{ "node": "Summary", "type": "main", "index": 0 }],
-        [{ "node": "Slack — failed", "type": "main", "index": 0 }]
-      ]
-    },
-    "Linear comment — drained": {
-      "main": [[{ "node": "Summary", "type": "main", "index": 0 }]]
-    },
-    "Slack — failed": {
-      "main": [[{ "node": "Summary", "type": "main", "index": 0 }]]
-    },
-    "Summary": {
-      "main": [[{ "node": "Slack — summary", "type": "main", "index": 0 }]]
     }
   },
   "settings": {

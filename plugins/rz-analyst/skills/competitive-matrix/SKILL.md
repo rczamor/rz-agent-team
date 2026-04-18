@@ -16,7 +16,7 @@ For broader category trends / sizing, use `market-analysis` instead. For pricing
 
 ## Template
 
-```markdown
+~~~markdown
 # Competitive matrix — {category}
 
 **Date:** {YYYY-MM-DD}
@@ -92,7 +92,7 @@ Quadrants or feature combinations that are unclaimed:
 ## Confidence: {low/medium/high}
 
 Rationale: {what makes this confidence level — e.g., "public data only, no win/loss interviews" = medium}
-```
+~~~
 
 ## Output requirements
 

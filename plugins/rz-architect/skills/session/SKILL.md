@@ -47,7 +47,7 @@ If the ticket is ambiguous, default to `adr-author` — most architecture work c
 
 ### 3. Produce the artifact
 
-Follow the invoked output skill's template exactly. Write to Notion under the [ADR Log hub](https://www.notion.so/346ac0ea4f6581d480e4d9633a6cafe6). Tag `app_id` in page properties. Title the page per the hub's naming convention (e.g., `ADR-{n} — {title}` for ADRs).
+Follow the invoked output skill's template exactly. Write to Notion under the [ADR Log hub](https://www.notion.so/346ac0ea4f6581d480e4d9633a6cafe6) — despite the name, this hub holds **all four** Technical Architect artifact types (ADRs, integration designs, architecture reviews, tech-stack evaluations), not only ADRs. Tag `app_id` in page properties. Title the page per the hub's naming convention for the artifact type (e.g., `ADR-{n} — {title}` for ADRs, `Integration — {A} ↔ {B}` for integration designs, `Review — {subject}` for reviews, `Tech stack — {category}` for evaluations).
 
 ### 4. Close
 

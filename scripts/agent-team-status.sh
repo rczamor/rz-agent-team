@@ -14,6 +14,7 @@ G="\033[32m"; Y="\033[33m"; R="\033[31m"; D="\033[2m"; N="\033[0m"
 OK="${G}✓${N}"; WARN="${Y}⚠${N}"; FAIL="${R}✗${N}"
 
 expected_roles=(conductor pm designer backend-eng data-eng ai-eng ui-eng qa-eng devops-eng tech-writer)
+expected_am_tables=(blockers decisions design_decisions findings_references handoffs patterns sessions)
 
 echo ""
 echo -e "${D}Agent Team Status — $(date -u +'%Y-%m-%d %H:%M UTC')${N}"
@@ -89,6 +90,51 @@ check_http "http://localhost:32768/api/tags" "Ollama (embedding)"
 
 echo ""
 
+# ---------- agent_memory schema ----------
+echo "agent_memory schema:"
+
+if docker exec agent-memory-postgres psql -U agent_memory -d agent_memory -t -c "SELECT table_name FROM information_schema.tables WHERE table_schema='agent_memory' ORDER BY table_name;" 2>/dev/null | grep -v '^$' > /tmp/am_tables.txt; then
+  missing_tables=()
+  for t in "${expected_am_tables[@]}"; do
+    if ! grep -q "$t" /tmp/am_tables.txt; then missing_tables+=("$t"); fi
+  done
+  if [ ${#missing_tables[@]} -eq 0 ]; then
+    echo -e "  ${OK} all 7 expected tables present (decisions, patterns, findings_references, design_decisions, handoffs, blockers, sessions)"
+  else
+    echo -e "  ${WARN} missing tables: ${missing_tables[*]}"
+  fi
+  # Warn if old 'findings' table still exists (pre-CAR-359 schema)
+  if grep -q '^ *findings *$' /tmp/am_tables.txt; then
+    echo -e "  ${FAIL} legacy 'findings' table still present — CAR-359 migration not applied"
+  fi
+else
+  echo -e "  ${WARN} could not query agent_memory schema (container not running or auth failed)"
+fi
+
+echo ""
+
+# ---------- Langfuse ----------
+echo "Langfuse:"
+
+if [ -n "${LANGFUSE_PUBLIC_KEY:-}" ] && [ -n "${LANGFUSE_SECRET_KEY:-}" ]; then
+  projects=$(curl -sSL --max-time 5 -u "${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}" http://localhost:3000/api/public/projects 2>/dev/null)
+  if echo "$projects" | grep -q '"id"'; then
+    proj_names=$(echo "$projects" | python3 -c "import json,sys; d=json.load(sys.stdin); print(', '.join(p.get('name','?') for p in d.get('data',[])))" 2>/dev/null || echo "?")
+    echo -e "  ${OK} API reachable; projects: ${proj_names}"
+    if echo "$proj_names" | grep -qi "agent-team"; then
+      echo -e "  ${OK} agent-team project exists"
+    else
+      echo -e "  ${WARN} no project named 'agent-team' — CAR-324 may not be fully set up"
+    fi
+  else
+    echo -e "  ${FAIL} Langfuse API returned unexpected response"
+  fi
+else
+  echo -e "  ${D}LANGFUSE_PUBLIC_KEY/SECRET_KEY not set — skipping project check${N}"
+fi
+
+echo ""
+
 # ---------- n8n workflows ----------
 echo "n8n workflows:"
 
@@ -141,5 +187,41 @@ if [ -n "$disk_info" ]; then
 fi
 
 echo ""
-echo -e "${D}Tip: set N8N_API_TOKEN for live workflow status; retire warnings → check the mapped Linear ticket${N}"
+
+# ---------- Deferred fires queue ----------
+echo "Deferred fires queue:"
+if [ -n "${N8N_API_TOKEN:-}" ]; then
+  # Static data is per-workflow; we need the workflow ID. Use the router workflow name.
+  router_id=$(curl -sSL --max-time 5 -H "X-N8N-API-KEY: $N8N_API_TOKEN" http://localhost:5678/api/v1/workflows 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((w['id'] for w in d.get('data',[]) if 'Routines + Paperclip' in w['name']), ''))" 2>/dev/null)
+  if [ -n "$router_id" ]; then
+    queue_depth=$(curl -sSL --max-time 5 -H "X-N8N-API-KEY: $N8N_API_TOKEN" "http://localhost:5678/api/v1/workflows/${router_id}" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); sd=d.get('staticData',{}); g=sd.get('global',{}) if isinstance(sd,dict) else {}; print(len(g.get('deferred_fires',[])))" 2>/dev/null)
+    if [ -n "$queue_depth" ] && [ "$queue_depth" -eq 0 ]; then
+      echo -e "  ${OK} queue empty"
+    elif [ -n "$queue_depth" ] && [ "$queue_depth" -lt 5 ]; then
+      echo -e "  ${OK} queue depth: $queue_depth (drainer will run at 00:05 UTC)"
+    else
+      echo -e "  ${WARN} queue depth: $queue_depth — inspect before drain cycle"
+    fi
+  else
+    echo -e "  ${D}router workflow not found — workflows may not be imported yet${N}"
+  fi
+else
+  echo -e "  ${D}N8N_API_TOKEN not set — skipping queue-depth check${N}"
+fi
+
+echo ""
+
+# ---------- Docker health summary ----------
+echo "Docker health (agent-team services):"
+docker ps --filter health=unhealthy --format '{{.Names}}' 2>/dev/null | while read unhealthy; do
+  echo -e "  ${FAIL} unhealthy: $unhealthy"
+done
+
+unhealthy_count=$(docker ps --filter health=unhealthy --format '{{.Names}}' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$unhealthy_count" = "0" ]; then
+  echo -e "  ${OK} no unhealthy containers"
+fi
+
+echo ""
+echo -e "${D}Tip: set N8N_API_TOKEN + LANGFUSE_PUBLIC_KEY/SECRET_KEY for full coverage; retire warnings → check the mapped Linear ticket${N}"
 echo ""
