@@ -1,0 +1,39 @@
+{
+  "skill": "rz-ux-researcher-journey-map",
+  "description": "Routine should produce a journey map with fully-populated stages table, explicit drop-off identification, ranked pain points, ranked opportunities.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-011",
+    "title": "Journey map: SIA knowledge ingestion flow (first URL ingest)",
+    "description": "Map the user journey from 'I have a URL I want SIA to remember' through 'I've verified SIA can retrieve and use it'. Identify drop-offs, pain points, opportunities. Evidence: 4 interviews + session recording review.",
+    "labels": ["type:ux", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Journey map —",
+    "**Persona / segment:**",
+    "## Scope",
+    "## Stages",
+    "## Biggest drop-off",
+    "## Top 3 pain points (ranked)",
+    "## Top 3 opportunities",
+    "## Quotes",
+    "## Methodology",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "stages_table_fully_populated_no_empty_cells": true,
+    "drop_off_specifies_stage_and_substep": true,
+    "pain_points_ranked_1_2_3": true,
+    "opportunities_ranked_1_2_3": true,
+    "quotes_spread_across_stages_min_4": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Is the stages table fully populated (no 'unknown' or empty cells across stages × dimensions)?",
+    "Is the biggest drop-off specific to a stage AND sub-step (not 'somewhere in onboarding')?",
+    "Are pain points ranked 1/2/3 with reasoning, not just listed?",
+    "Are opportunities phrased as opportunities (not solutions) — 'hand to Designer/PM-lite'?",
+    "Are quotes distributed across stages (not all from one stage)?"
+  ],
+  "success_criteria": "Stages fully populated + specific drop-off + ranked pain/opportunities + 4+ quotes across stages"
+}

@@ -1,0 +1,35 @@
+{
+  "skill": "rz-architect-architecture-review",
+  "description": "Routine should produce an architecture review with verdict (one of 4), concerns ranked by severity, strengths section, and an alternative if rejecting.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-003",
+    "title": "Review: proposed Redis-backed session cache for SIA",
+    "description": "Proposal from backend engineer: add a Redis cache in front of agent_memory queries to reduce p95 latency. Linked Notion doc has full design. Please review against the app's architecture characteristics (performance, operational simplicity, reliability) and give a verdict.",
+    "labels": ["type:architect", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Architecture review —",
+    "**Verdict:**",
+    "## Executive summary",
+    "## Strengths",
+    "## Concerns",
+    "## Questions the proposal doesn't answer",
+    "## Recommendation to Riché"
+  ],
+  "expected_output_fields": {
+    "verdict_is_one_of": ["Approve", "Approve with changes", "Request rework", "Reject"],
+    "concerns_include_severity_labels": true,
+    "strengths_section_non_empty": true,
+    "if_verdict_is_blocking_has_alternative_direction": true,
+    "every_blocking_concern_has_suggested_resolution": true
+  },
+  "smoke_questions": [
+    "Is the verdict one of the four defined values — not a nuanced dodge?",
+    "Does each concern have a severity (Catastrophic / Major / Minor / Cosmetic)?",
+    "Are there at least 2 strengths listed (not empty)?",
+    "If verdict is 'Reject', is an alternative direction described?",
+    "Do Blocking/Major concerns each include a suggested resolution, not just criticism?"
+  ],
+  "success_criteria": "Verdict present + strengths non-empty + every blocking concern has resolution + at least 3 concerns total"
+}

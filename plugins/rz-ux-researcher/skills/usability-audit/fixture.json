@@ -1,0 +1,40 @@
+{
+  "skill": "rz-ux-researcher-usability-audit",
+  "description": "Routine should produce a heuristic evaluation with 3+ findings mapped to Nielsen heuristics, severity labels, cognitive walkthrough, strengths section, ranked recommendations, hand-off (but no direct engineering tickets).",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-012",
+    "title": "Usability audit: richezamor.com speaking page",
+    "description": "Audit the speaking page at richezamor.com/speaking. Include screenshots. Run through cognitive walkthrough: a potential event organizer wants to book Riché — can they do it? What breaks?",
+    "labels": ["type:ux", "rzcom"],
+    "app_id": "rzcom"
+  },
+  "expected_output_structure": [
+    "# Usability audit —",
+    "## Surface evaluated",
+    "## Cognitive walkthrough",
+    "## Findings",
+    "## Nielsen's heuristics reference",
+    "## Strengths",
+    "## Recommendations ranked by impact",
+    "## Hand-off",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "findings_min_count": 3,
+    "every_finding_maps_to_nielsen_heuristic": true,
+    "every_finding_has_severity_label": true,
+    "cognitive_walkthrough_non_empty": true,
+    "strengths_section_non_empty": true,
+    "recommendations_ranked_not_listed": true,
+    "hand_off_does_NOT_file_engineering_ticket_directly": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Are there at least 3 findings (not a half-hearted 1–2)?",
+    "Does every finding reference a specific Nielsen heuristic (by name or number)?",
+    "Does every finding have a severity (Catastrophic/Major/Minor/Cosmetic)?",
+    "Does the audit include a cognitive walkthrough grounded in a specific task?",
+    "Does the hand-off correctly route Major/Catastrophic findings to Designer, NOT file type:engineering tickets directly (this would be a role violation)?"
+  ],
+  "success_criteria": "3+ findings with Nielsen heuristic + severity + cognitive walkthrough + strengths + ranked recs + hands off to Designer (not engineering)"
+}

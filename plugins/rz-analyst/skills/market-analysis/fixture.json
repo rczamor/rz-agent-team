@@ -1,0 +1,39 @@
+{
+  "skill": "rz-analyst-market-analysis",
+  "description": "Routine should produce a market brief with TAM/SAM/SOM, trends with evidence, buyer behavior, and explicit portfolio implications — not generic trade-press summary.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-006",
+    "title": "Market analysis: AI-powered recipe apps",
+    "description": "Recipe Remix is an AI-powered recipe prototype. Size and shape the market: TAM/SAM, trends, buyer segments, what's driving adoption, what's blocking it.",
+    "labels": ["type:analyst", "recipe-remix"],
+    "app_id": "recipe-remix"
+  },
+  "expected_output_structure": [
+    "# Market analysis —",
+    "## Executive summary",
+    "## Market size",
+    "## Key segments",
+    "## Trends",
+    "## Buyer behavior",
+    "## Competitive landscape overview",
+    "## Disruption vectors",
+    "## Implications for Riché's portfolio",
+    "## Sources",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "tam_sam_som_all_attempted": true,
+    "trends_have_evidence_and_direction": true,
+    "buyer_behavior_section_non_empty": true,
+    "implications_name_specific_apps": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Is TAM given a specific number (or explicit 'can't source, here's why'), not a vague 'large'?",
+    "Does each trend have at least one citation?",
+    "Does buyer-behavior section describe WHO buys and WHAT triggers purchase?",
+    "Do implications name specific apps (e.g., Recipe Remix), not just 'our portfolio'?",
+    "Does the brief distinguish sustaining trends from potential disruptions?"
+  ],
+  "success_criteria": "TAM/SAM/SOM attempted + trends with citations + specific implications + confidence label"
+}

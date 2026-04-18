@@ -1,0 +1,42 @@
+{
+  "skill": "rz-ai-researcher-ablation-study",
+  "description": "Routine should produce an ablation-study design with testable hypothesis, isolated variable, statistical plan pre-registered, per-slice analysis, limitations.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-015",
+    "title": "Ablation: does adding a rerank stage improve SIA consolidation?",
+    "description": "Design an ablation study to isolate whether adding a cross-encoder rerank stage after bi-encoder retrieval improves consolidation relevance. Control for: same corpus, same dataset, same evaluation rubric. Variable: rerank on/off.",
+    "labels": ["type:research", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Ablation study —",
+    "## Research question",
+    "## Hypothesis",
+    "## Variables",
+    "## Experimental design",
+    "## Eval rubric",
+    "## Statistical plan",
+    "## Results",
+    "## Interpretation",
+    "## Recommendation",
+    "## Limitations",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "research_question_is_single_sentence_testable": true,
+    "h1_and_h0_both_stated": true,
+    "control_variables_listed_explicitly": true,
+    "statistical_plan_specifies_test_and_threshold_and_effect_size": true,
+    "per_slice_analysis_planned": true,
+    "limitations_section_non_empty": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Is the research question one sentence, testable (not 'let's explore whether...')?",
+    "Are both H1 (alternative) AND H0 (null) stated explicitly?",
+    "Is only ONE variable isolated, with controls listed?",
+    "Does the statistical plan name the test (t-test / Mann-Whitney / etc.) AND threshold AND effect size?",
+    "Does the plan commit to per-slice analysis (not just aggregate) to check where the effect does and doesn't hold?"
+  ],
+  "success_criteria": "Single testable question + H1+H0 + isolated variable + stats plan with test/threshold/effect size + per-slice + limitations"
+}

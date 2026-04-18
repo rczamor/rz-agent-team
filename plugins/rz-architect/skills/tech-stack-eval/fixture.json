@@ -1,0 +1,38 @@
+{
+  "skill": "rz-architect-tech-stack-eval",
+  "description": "Routine should produce a weighted comparison of 3+ candidates with explicit characteristics, scores, rationale per score, recommendation, and what-would-change-my-mind section.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-004",
+    "title": "Evaluate job queue options for SIA: Postgres-backed (pg-boss) vs Redis (BullMQ) vs managed (Cloudflare Queues)",
+    "description": "SIA needs a job queue for async ingestion + publishing. Three candidates: pg-boss (reuses existing Postgres), BullMQ (Redis-backed, proven), Cloudflare Queues (managed). Score against characteristics the app actually needs.",
+    "labels": ["type:architect", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Tech stack eval —",
+    "**Candidates:**",
+    "**Recommendation:**",
+    "## Decision criteria",
+    "## Scored matrix",
+    "## Candidate notes",
+    "## Recommendation",
+    "## What would change this recommendation",
+    "## Implementation plan"
+  ],
+  "expected_output_fields": {
+    "candidates_min_count": 3,
+    "decision_criteria_weights_sum_to_100": true,
+    "every_score_has_rationale_sentence": true,
+    "weighted_total_to_2_decimal_places": true,
+    "has_what_would_change_my_mind_section": true,
+    "implementation_plan_has_rollback_path": true
+  },
+  "smoke_questions": [
+    "Are the weights in the decision criteria genuinely differentiated (not all 15–20%)?",
+    "Does each score (1–5) have a one-sentence rationale, not just a number?",
+    "Does the recommendation cite the specific criterion(s) that tilted it?",
+    "Is there a criterion whose change would flip the recommendation, named explicitly?",
+    "Is the implementation plan bounded (time, milestones) rather than 'we'll figure it out'?"
+  ],
+  "success_criteria": "3+ candidates + weights sum to 100 + every cell has rationale + what-would-change-my-mind non-empty"
+}

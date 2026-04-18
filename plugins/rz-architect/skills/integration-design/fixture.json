@@ -1,0 +1,40 @@
+{
+  "skill": "rz-architect-integration-design",
+  "description": "Routine should produce an integration design with sequence, data contract (both directions), failure modes table, and rollout plan.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-002",
+    "title": "SIA MCP tool for richezamor.com chatbot widget",
+    "description": "The chatbot widget on richezamor.com needs to call SIA's knowledge layer. Design the integration: which MCP tool(s) to expose, request/response shape, auth model, failure modes, and rollout (shadow → staged → full).",
+    "labels": ["type:architect", "sia", "website"],
+    "app_id": "global"
+  },
+  "expected_output_structure": [
+    "# Integration —",
+    "## Problem",
+    "## Sequence (happy path)",
+    "## Data contract",
+    "### A → B request",
+    "### B → A response",
+    "### Versioning",
+    "### Idempotency and retry",
+    "## Failure modes",
+    "## Non-functional requirements",
+    "## Rollout plan",
+    "## Observability requirements"
+  ],
+  "expected_output_fields": {
+    "sequence_includes_at_least_one_error_branch": true,
+    "data_contract_has_no_etc_placeholders": true,
+    "failure_modes_table_row_count_min": 4,
+    "rollout_has_explicit_rollback_criteria": true,
+    "mentions_both_apps_affected": ["sia", "website"]
+  },
+  "smoke_questions": [
+    "Is the happy-path sequence concrete (named endpoints, not vague arrows)?",
+    "Does the data contract specify versioning strategy, not just 'we'll version it'?",
+    "Does the idempotency section name the key (e.g., which field)?",
+    "Does the rollout plan have a trigger for rollback (not just 'if broken')?",
+    "Does observability specify Langfuse span names / metrics, not generic 'we'll add logs'?"
+  ],
+  "success_criteria": "All structure sections + at least 4 failure-mode rows + explicit rollback criteria + no etc placeholders"
+}

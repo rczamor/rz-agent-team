@@ -1,0 +1,40 @@
+{
+  "skill": "rz-ai-researcher-method-eval",
+  "description": "Routine should produce a method evaluation with one-of-four recommendation, why-it-might-not-work-for-us section, concrete eval plan, and handoff to AI Engineer if adopting/trialing.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-013",
+    "title": "Method eval: should SIA adopt ColBERTv2 late-interaction retrieval?",
+    "description": "Current SIA retrieval uses dense single-vector embeddings. Should we adopt ColBERTv2 (late interaction)? Paper claims significant recall gains. Evaluate for our setup: corpus size ~100k chunks, VPS-hosted, p95 latency SLO 500ms.",
+    "labels": ["type:research", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Method eval —",
+    "**Recommendation:** Adopt | Trial | Hold | Reject",
+    "## What the technique is",
+    "## Source paper(s) / reference implementation",
+    "## What it claims",
+    "## How it would map to our setup",
+    "## Why it might NOT work for us",
+    "## Proposed eval",
+    "## Recommendation",
+    "## Handoff",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "recommendation_is_one_of_four": ["Adopt", "Trial", "Hold", "Reject"],
+    "why_not_section_non_empty": true,
+    "eval_plan_has_metrics_dataset_baseline_success_criteria": true,
+    "handoff_specifies_type_engineering_ticket_if_adopting": true,
+    "handoff_specifies_ai_engineer_not_direct_implementation": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Is the recommendation a single-word verdict (Adopt/Trial/Hold/Reject)?",
+    "Does 'Why it might NOT work for us' honestly name constraint mismatches (not just 'we'll need to validate')?",
+    "Does the eval plan specify metric + dataset + baseline + success criteria concretely?",
+    "If recommendation is Adopt or Trial, is there a handoff to AI Engineer via a proposed type:engineering ticket?",
+    "Does the brief cite the source paper + reference implementation (not just 'there are ColBERT papers')?"
+  ],
+  "success_criteria": "Singular recommendation + honest why-not + full eval plan + AI Eng handoff if Adopt/Trial"
+}
