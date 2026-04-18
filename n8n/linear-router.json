@@ -128,7 +128,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Classify Fire routine response. Returns { outcome } where outcome is 'ok' | 'capped' | 'failed'.\nconst pickInput = $('Pick routine').item.json;\nconst resp = $input.first().json;\nconst status = resp.statusCode || resp.status || 0;\nconst body = resp.body || resp;\n\nlet outcome;\nif (status >= 200 && status < 300) outcome = 'ok';\nelse if (status === 429) outcome = 'capped';\nelse outcome = 'failed';\n\nreturn [{\n  json: {\n    ...pickInput,\n    outcome,\n    statusCode: status,\n    responseBody: body,\n    session_url: body?.session_url || body?.url || null,\n    langfuse_trace_url: body?.langfuse_trace_url || body?.trace_url || null,\n  }\n}];"
+        "jsCode": "// Classify Fire routine response. Returns { outcome } where outcome is 'ok' | 'capped' | 'failed'.\n// Response shape from https://code.claude.com/docs/en/routines#trigger-a-routine is:\n//   { type: 'routine_fire', claude_code_session_id: '...', claude_code_session_url: '...' }\nconst pickInput = $('Pick routine').item.json;\nconst resp = $input.first().json;\nconst status = resp.statusCode || resp.status || 0;\nconst body = resp.body || resp;\n\nlet outcome;\nif (status >= 200 && status < 300) outcome = 'ok';\nelse if (status === 429) outcome = 'capped';\nelse outcome = 'failed';\n\nreturn [{\n  json: {\n    ...pickInput,\n    outcome,\n    statusCode: status,\n    responseBody: body,\n    claude_code_session_id: body?.claude_code_session_id || null,\n    claude_code_session_url: body?.claude_code_session_url || null,\n  }\n}];"
       },
       "id": "classify-fire",
       "name": "Classify fire response",
@@ -167,7 +167,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `⚙ ${$json.routineName} routine fired.\\n\\nSession URL: ${$json.session_url || 'pending'}\\nTrace: ${$json.langfuse_trace_url || 'pending'}`\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `⚙ ${$json.routineName} routine fired.\\n\\nSession: ${$json.claude_code_session_url || 'pending'}\\nSession ID: ${$json.claude_code_session_id || 'pending'}\\n\\n(Langfuse trace URL will be posted by the routine itself on completion.)`\n  }\n}) }}",
         "options": {}
       },
       "id": "comment-routine-fired",
@@ -259,7 +259,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PAPERCLIP_API_URL }}/tasks",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/issues",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -281,7 +281,7 @@
         }
       },
       "id": "create-paperclip-task",
-      "name": "Create Paperclip task",
+      "name": "Create Paperclip issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1300, 540]
@@ -305,11 +305,11 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Build Paperclip payload').item.json.issueId,\n    body: `⚙ Paperclip task created for execution layer.\\n\\nTask ID: ${$json.task_id || $json.id || 'see Paperclip'}\\nApp: ${$('Build Paperclip payload').item.json.appLabel}`\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Build Paperclip payload').item.json.issueId,\n    body: `⚙ Paperclip issue created for execution layer.\\n\\nIssue ID: ${$json.id || $json.issue_id || $json.paperclip_issue_id || 'see Paperclip'}\\nApp: ${$('Build Paperclip payload').item.json.appLabel}`\n  }\n}) }}",
         "options": {}
       },
       "id": "comment-paperclip-created",
-      "name": "Comment — Paperclip task created",
+      "name": "Comment — Paperclip issue created",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1520, 540]
@@ -379,12 +379,12 @@
       "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
     },
     "Build Paperclip payload": {
-      "main": [[{ "node": "Create Paperclip task", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Create Paperclip issue", "type": "main", "index": 0 }]]
     },
-    "Create Paperclip task": {
-      "main": [[{ "node": "Comment — Paperclip task created", "type": "main", "index": 0 }]]
+    "Create Paperclip issue": {
+      "main": [[{ "node": "Comment — Paperclip issue created", "type": "main", "index": 0 }]]
     },
-    "Comment — Paperclip task created": {
+    "Comment — Paperclip issue created": {
       "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
     }
   },

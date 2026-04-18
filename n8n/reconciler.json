@@ -137,7 +137,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.PAPERCLIP_API_URL }}/tasks",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/issues",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -160,7 +160,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Paperclip evidence check. If the GET returns any tasks matching this Linear ticket,\n// the ticket was processed. Tolerate different Paperclip response shapes.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst tasks = Array.isArray(body) ? body : (body?.tasks || body?.data || []);\nconst found = Array.isArray(tasks) && tasks.length > 0;\nreturn [{\n  json: {\n    ...ticket,\n    evidence: found ? 'task-found' : 'none',\n    missed: !found,\n  }\n}];"
+        "jsCode": "// Paperclip evidence check. If the GET returns any issues matching this Linear ticket,\n// the ticket was processed. Tolerate different Paperclip response shapes.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst issues = Array.isArray(body) ? body : (body?.issues || body?.tasks || body?.data || []);\nconst found = Array.isArray(issues) && issues.length > 0;\nreturn [{\n  json: {\n    ...ticket,\n    evidence: found ? 'issue-found' : 'none',\n    missed: !found,\n  }\n}];"
       },
       "id": "paperclip-evidence-check",
       "name": "Paperclip evidence check",

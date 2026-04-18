@@ -103,8 +103,11 @@ Set in `/docker/n8n/.env` on the VPS:
 
 ```
 # Routine fire URLs + bearer tokens — from CAR-353
-ROUTINE_ARCHITECT_URL=https://api.anthropic.com/v1/.../{routine_id}/fire
-ROUTINE_ARCHITECT_TOKEN=sk-...
+# URL format per https://code.claude.com/docs/en/routines:
+#   https://api.anthropic.com/v1/claude_code/routines/trig_01ABC.../fire
+# Tokens are shown once in the Claude Code UI when you click "Generate token"
+ROUTINE_ARCHITECT_URL=https://api.anthropic.com/v1/claude_code/routines/trig_.../fire
+ROUTINE_ARCHITECT_TOKEN=sk-ant-oat01-...
 ROUTINE_ANALYST_URL=...
 ROUTINE_ANALYST_TOKEN=...
 ROUTINE_UX_URL=...
@@ -112,8 +115,9 @@ ROUTINE_UX_TOKEN=...
 ROUTINE_RESEARCH_URL=...
 ROUTINE_RESEARCH_TOKEN=...
 
-# Paperclip
+# Paperclip (multi-tenant — endpoint is /api/companies/{companyId}/issues)
 PAPERCLIP_API_URL=https://paperclip-hxtc.srv1535988.hstgr.cloud
+PAPERCLIP_COMPANY_ID=<companyId>   # discover from Paperclip admin UI or GET /api/companies with auth
 PAPERCLIP_API_KEY=pc_...
 
 # Linear
@@ -193,7 +197,8 @@ After import + credentials + activation of all 3 workflows:
 ## Notes for Riché at install time
 
 - The `onError: continueRegularOutput` on every Slack node means a Slack outage won't block the main flow — but you won't be alerted during the outage. Consider a secondary alert channel (email?) if Slack reliability becomes a concern.
-- Routine fire response shape (`session_url`, `langfuse_trace_url`) is assumed based on the Claude Code Routines API docs. The `Classify fire response` node tolerates either `session_url` or `url`, and either `langfuse_trace_url` or `trace_url`. If Anthropic's actual response uses different names, adjust there.
-- Paperclip API response shape (`task_id` or `id`) is assumed. Adjust the `Comment — Paperclip task created` node if different.
+- Routine fire response shape confirmed 2026-04-18 from https://code.claude.com/docs/en/routines: `{type: "routine_fire", claude_code_session_id, claude_code_session_url}`. The `Classify fire response` node extracts these. No Langfuse trace URL is returned — the routine itself posts that when the session completes.
+- Paperclip uses multi-tenant routes: `/api/companies/{companyId}/issues`. The `PAPERCLIP_COMPANY_ID` env var is required. Verified 2026-04-18 by probing the live instance (`GET /api/issues` → 400 with error message pointing at the company-scoped path).
+- Paperclip issue-create response shape is not yet confirmed — the workflow's `Comment — Paperclip issue created` node tolerates `id`, `issue_id`, or `paperclip_issue_id` in the response. Inspect the first real response and tighten if needed.
 - 15 runs/day cap for Claude Code Routines on Max plan. When you hit the cap the main router defers; the drainer retries at 00:05 UTC. If you're routinely hitting the cap, consider requesting additional usage billing from Anthropic.
 - The reconciler calls the main router's own webhook URL. If n8n is reachable only via Traefik/HTTPS externally, the reconciler may need `N8N_ROUTER_WEBHOOK_URL` pointing at the internal Docker service name (`http://n8n:5678/webhook/linear-router`) — adjust if localhost doesn't work.

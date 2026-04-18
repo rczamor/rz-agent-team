@@ -17,6 +17,7 @@ Paperclip is the execution layer and immutable audit log. Every dispatched piece
 ## Required env vars
 
 - `PAPERCLIP_API_URL` — `https://paperclip-hxtc.srv1535988.hstgr.cloud`
+- `PAPERCLIP_COMPANY_ID` — multi-tenancy identifier. Discover once at setup time from the Paperclip admin UI (or `GET /api/companies` with auth) and store in VPS secrets.
 - `PAPERCLIP_API_TOKEN` — bearer token scoped to the Conductor instance (admin user `rczamor@gmail.com`)
 - `LINEAR_API_KEY` — needed to post the back-reference comment on the Linear ticket
 
@@ -68,7 +69,7 @@ Paperclip is the execution layer and immutable audit log. Every dispatched piece
 ## Implementation notes
 
 - **`app_id` is non-negotiable.** Reject the call if `app_id` is missing or not one of the 8 registered values from `USER.md`. Paperclip's schema enforces this; fail fast before the POST.
-- POST to `${PAPERCLIP_API_URL}/api/issues` with `Authorization: Bearer ${PAPERCLIP_API_TOKEN}`. Retry 3x on 5xx (1s, 3s, 9s). Never retry on 4xx.
+- POST to `${PAPERCLIP_API_URL}/api/companies/${PAPERCLIP_COMPANY_ID}/issues` with `Authorization: Bearer ${PAPERCLIP_API_TOKEN}`. Retry 3x on 5xx (1s, 3s, 9s). Never retry on 4xx. **Note:** earlier drafts of this skill used `/api/issues` — that endpoint returns 400 with a message pointing at the correct company-scoped path. Verified 2026-04-18.
 - After Paperclip returns, write a Linear comment: `Paperclip: {paperclip_url} · Langfuse session: {langfuse_session_id}`. This satisfies the "every Linear comment references Paperclip + Langfuse" rule.
 - If `portfolio_action_id` is non-null, tag the Paperclip issue with it and ensure the row exists in `agent_memory.sessions` (cross-app work tracking).
 - Log the Paperclip creation itself to Langfuse: tags `conductor` + `app_id` + `paperclip-create`, with the Paperclip issue ID as the output.

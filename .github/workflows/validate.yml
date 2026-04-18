@@ -1,0 +1,76 @@
+name: Validate workflows + plugins
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-json:
+    name: Validate JSON + plugin manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Validate n8n workflow JSON
+        run: |
+          set -e
+          if compgen -G "n8n/*.json" > /dev/null; then
+            for f in n8n/*.json; do
+              printf "== %s ==\n" "$f"
+              python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print('OK', len(d.get('nodes',[])), 'nodes')" "$f" || exit 1
+            done
+          else
+            echo "No n8n/*.json files found (skipping)"
+          fi
+
+      - name: Validate plugin manifests
+        run: |
+          set -e
+          if compgen -G "plugins/*/.claude-plugin/plugin.json" > /dev/null; then
+            for f in plugins/*/.claude-plugin/plugin.json; do
+              printf "== %s ==\n" "$f"
+              jq -e '.name and .version and .description' "$f" > /dev/null || { printf 'FAIL: missing required fields in %s\n' "$f"; exit 1; }
+              echo "OK"
+            done
+          else
+            echo "No plugin manifests found (skipping)"
+          fi
+
+      - name: Validate marketplace manifest
+        run: |
+          set -e
+          if [ -f ".claude-plugin/marketplace.json" ]; then
+            echo "== .claude-plugin/marketplace.json =="
+            jq -e '.name and .plugins' ".claude-plugin/marketplace.json" > /dev/null || { echo "FAIL: marketplace manifest missing required fields"; exit 1; }
+            echo "OK"
+          else
+            echo "No marketplace manifest found (skipping)"
+          fi
+
+      - name: Check every marketplace plugin source path exists
+        run: |
+          set -e
+          if [ ! -f ".claude-plugin/marketplace.json" ]; then
+            echo "No marketplace manifest — skipping source path check"
+            exit 0
+          fi
+          jq -r '.plugins[] | select(.source | type == "string") | .source' .claude-plugin/marketplace.json | while read src; do
+            path="${src#./}"
+            if [ ! -d "$path" ]; then
+              printf "FAIL: marketplace references %s but %s does not exist\n" "$src" "$path"
+              exit 1
+            fi
+            if [ ! -f "$path/.claude-plugin/plugin.json" ]; then
+              printf "FAIL: %s is missing .claude-plugin/plugin.json\n" "$path"
+              exit 1
+            fi
+            printf "OK: %s\n" "$src"
+          done
