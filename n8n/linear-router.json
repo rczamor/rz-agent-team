@@ -1,0 +1,321 @@
+{
+  "name": "Linear Router — Routines + Paperclip",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "linear-router",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Linear Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "linear-router"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedup on issueId + updatedAt. Uses workflow static data so retries don't double-fire.\nconst payload = $input.first().json;\nconst action = payload.action;\nconst issue = payload.data || {};\nconst issueId = issue.id;\nconst updatedAt = issue.updatedAt;\nconst stateName = issue.state?.name;\nconst labels = (issue.labels || []).map(l => l.name);\nconst appLabel = labels.find(l => !l.startsWith('type:')) || 'global';\nconst typeLabel = labels.find(l => l.startsWith('type:')) || null;\n\n// Only operate on issue updates that are status changes to our trigger statuses.\nconst triggerStatuses = new Set(['Ready for Claude routines', 'Ready for agent build']);\nif (action !== 'update' || !triggerStatuses.has(stateName)) {\n  return [{ json: { skip: true, reason: 'not-a-trigger-status', stateName } }];\n}\n\n// Dedup\nconst staticData = $getWorkflowStaticData('global');\nstaticData.seen = staticData.seen || {};\nconst key = `${issueId}:${updatedAt}`;\nif (staticData.seen[key]) {\n  return [{ json: { skip: true, reason: 'duplicate', key } }];\n}\n// Prune: keep only last 500 entries\nconst keys = Object.keys(staticData.seen);\nif (keys.length > 500) {\n  keys.slice(0, keys.length - 500).forEach(k => delete staticData.seen[k]);\n}\nstaticData.seen[key] = Date.now();\n\nreturn [{\n  json: {\n    skip: false,\n    issueId,\n    issueIdentifier: issue.identifier,\n    issueTitle: issue.title,\n    issueDescription: issue.description || '',\n    issueUrl: issue.url,\n    updatedAt,\n    stateName,\n    typeLabel,\n    appLabel,\n    allLabels: labels,\n  }\n}];"
+      },
+      "id": "dedup-and-parse",
+      "name": "Dedup + Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "false" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-not-skipped",
+      "name": "If not skipped",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.stateName }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "Ready for Claude routines",
+              "outputKey": "routine"
+            },
+            {
+              "value2": "Ready for agent build",
+              "outputKey": "paperclip"
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "switch-on-status",
+      "name": "Switch on status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [860, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map type:* label to the routine fire endpoint + bearer token env var.\nconst input = $input.first().json;\nconst typeLabel = input.typeLabel;\n\nconst routines = {\n  'type:architect':  { url: $env.ROUTINE_ARCHITECT_URL,  token: $env.ROUTINE_ARCHITECT_TOKEN,  name: 'Technical Architect' },\n  'type:analyst':    { url: $env.ROUTINE_ANALYST_URL,    token: $env.ROUTINE_ANALYST_TOKEN,    name: 'Analyst' },\n  'type:ux':         { url: $env.ROUTINE_UX_URL,         token: $env.ROUTINE_UX_TOKEN,         name: 'User Researcher' },\n  'type:research':   { url: $env.ROUTINE_RESEARCH_URL,   token: $env.ROUTINE_RESEARCH_TOKEN,   name: 'AI Researcher' },\n};\n\nconst routine = routines[typeLabel];\nif (!routine || !routine.url) {\n  throw new Error(`No routine configured for label ${typeLabel}`);\n}\n\nconst firePayload = {\n  text: `Linear ticket ${input.issueIdentifier}: ${input.issueTitle}\\n\\n${input.issueDescription}\\n\\nLabels: ${input.allLabels.join(', ')}\\nApp: ${input.appLabel}\\nURL: ${input.issueUrl}`,\n};\n\nreturn [{\n  json: {\n    ...input,\n    routineName: routine.name,\n    routineUrl: routine.url,\n    routineToken: routine.token,\n    firePayload,\n  }\n}];"
+      },
+      "id": "pick-routine",
+      "name": "Pick routine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.routineUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.routineToken }}"
+            },
+            {
+              "name": "anthropic-beta",
+              "value": "experimental-cc-routine-2026-04-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.firePayload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "fire-routine",
+      "name": "Fire routine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Pick routine').item.json.issueId,\n    body: `⚙ ${$('Pick routine').item.json.routineName} routine fired.\\n\\nSession URL: ${$json.session_url || 'pending'}\\nTrace: ${$json.langfuse_trace_url || 'pending'}`\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "comment-routine-fired",
+      "name": "Comment — routine fired",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1520, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Paperclip task payload.\nconst input = $input.first().json;\n\nconst payload = {\n  linear_ticket_id: input.issueIdentifier,\n  linear_issue_id: input.issueId,\n  linear_url: input.issueUrl,\n  app_id: input.appLabel,\n  title: input.issueTitle,\n  description: input.issueDescription,\n  labels: input.allLabels,\n};\n\nreturn [{ json: { ...input, paperclipPayload: payload } }];"
+      },
+      "id": "build-paperclip-payload",
+      "name": "Build Paperclip payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 540]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.paperclipPayload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "create-paperclip-task",
+      "name": "Create Paperclip task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 540]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Build Paperclip payload').item.json.issueId,\n    body: `⚙ Paperclip task created for execution layer.\\n\\nTask ID: ${$json.task_id || $json.id || 'see Paperclip'}\\nApp: ${$('Build Paperclip payload').item.json.appLabel}`\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "comment-paperclip-created",
+      "name": "Comment — Paperclip task created",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1520, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, ts: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1740, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=❌ Linear Router error\nIssue: {{ $json.issueIdentifier || 'unknown' }} — {{ $json.issueTitle || 'unknown' }}\nStage: {{ $execution.id }}\nError: {{ $json.error?.message || 'unknown' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-error-alert",
+      "name": "Slack — error alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1300, 760],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Linear Webhook": {
+      "main": [
+        [{ "node": "Dedup + Parse", "type": "main", "index": 0 }]
+      ]
+    },
+    "Dedup + Parse": {
+      "main": [
+        [{ "node": "If not skipped", "type": "main", "index": 0 }]
+      ]
+    },
+    "If not skipped": {
+      "main": [
+        [{ "node": "Switch on status", "type": "main", "index": 0 }],
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+      ]
+    },
+    "Switch on status": {
+      "main": [
+        [{ "node": "Pick routine", "type": "main", "index": 0 }],
+        [{ "node": "Build Paperclip payload", "type": "main", "index": 0 }],
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+      ]
+    },
+    "Pick routine": {
+      "main": [
+        [{ "node": "Fire routine", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fire routine": {
+      "main": [
+        [{ "node": "Comment — routine fired", "type": "main", "index": 0 }]
+      ]
+    },
+    "Comment — routine fired": {
+      "main": [
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Paperclip payload": {
+      "main": [
+        [{ "node": "Create Paperclip task", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Paperclip task": {
+      "main": [
+        [{ "node": "Comment — Paperclip task created", "type": "main", "index": 0 }]
+      ]
+    },
+    "Comment — Paperclip task created": {
+      "main": [
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    { "name": "agent-team" },
+    { "name": "router" }
+  ],
+  "meta": {
+    "instanceId": "agent-team"
+  }
+}
