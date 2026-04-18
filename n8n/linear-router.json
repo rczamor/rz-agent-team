@@ -78,7 +78,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Map type:* label to the routine fire endpoint + bearer token env var.\nconst input = $input.first().json;\nconst typeLabel = input.typeLabel;\n\nconst routines = {\n  'type:architect':  { url: $env.ROUTINE_ARCHITECT_URL,  token: $env.ROUTINE_ARCHITECT_TOKEN,  name: 'Technical Architect' },\n  'type:analyst':    { url: $env.ROUTINE_ANALYST_URL,    token: $env.ROUTINE_ANALYST_TOKEN,    name: 'Analyst' },\n  'type:ux':         { url: $env.ROUTINE_UX_URL,         token: $env.ROUTINE_UX_TOKEN,         name: 'User Researcher' },\n  'type:research':   { url: $env.ROUTINE_RESEARCH_URL,   token: $env.ROUTINE_RESEARCH_TOKEN,   name: 'AI Researcher' },\n};\n\nconst routine = routines[typeLabel];\nif (!routine || !routine.url) {\n  throw new Error(`No routine configured for label ${typeLabel}`);\n}\n\nconst firePayload = {\n  text: `Linear ticket ${input.issueIdentifier}: ${input.issueTitle}\\n\\n${input.issueDescription}\\n\\nLabels: ${input.allLabels.join(', ')}\\nApp: ${input.appLabel}\\nURL: ${input.issueUrl}`,\n};\n\nreturn [{\n  json: {\n    ...input,\n    routineName: routine.name,\n    routineUrl: routine.url,\n    routineToken: routine.token,\n    firePayload,\n  }\n}];"
+        "jsCode": "// Map type:* label to the routine fire endpoint + bearer token env var.\nconst input = $input.first().json;\nconst typeLabel = input.typeLabel;\n\nconst routines = {\n  'type:architect':  { url: $env.ROUTINE_ARCHITECT_URL,  token: $env.ROUTINE_ARCHITECT_TOKEN,  name: 'Technical Architect' },\n  'type:analyst':    { url: $env.ROUTINE_ANALYST_URL,    token: $env.ROUTINE_ANALYST_TOKEN,    name: 'Analyst' },\n  'type:ux':         { url: $env.ROUTINE_UX_URL,         token: $env.ROUTINE_UX_TOKEN,         name: 'User Researcher' },\n  'type:research':   { url: $env.ROUTINE_RESEARCH_URL,   token: $env.ROUTINE_RESEARCH_TOKEN,   name: 'AI Researcher' },\n};\n\nconst routine = routines[typeLabel];\nif (!routine || !routine.url) {\n  throw new Error(`No routine configured for label ${typeLabel}`);\n}\n\nconst firePayloadText = `Linear ticket ${input.issueIdentifier}: ${input.issueTitle}\\n\\n${input.issueDescription}\\n\\nLabels: ${input.allLabels.join(', ')}\\nApp: ${input.appLabel}\\nURL: ${input.issueUrl}`;\n\nreturn [{\n  json: {\n    ...input,\n    routineName: routine.name,\n    routineUrl: routine.url,\n    routineToken: routine.token,\n    firePayload: { text: firePayloadText },\n    firePayloadText,\n  }\n}];"
       },
       "id": "pick-routine",
       "name": "Pick routine",
@@ -90,8 +90,6 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $json.routineUrl }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -113,7 +111,13 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.firePayload) }}",
         "options": {
-          "timeout": 30000
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
         }
       },
       "id": "fire-routine",
@@ -124,31 +128,123 @@
     },
     {
       "parameters": {
+        "jsCode": "// Classify Fire routine response. Returns { outcome } where outcome is 'ok' | 'capped' | 'failed'.\nconst pickInput = $('Pick routine').item.json;\nconst resp = $input.first().json;\nconst status = resp.statusCode || resp.status || 0;\nconst body = resp.body || resp;\n\nlet outcome;\nif (status >= 200 && status < 300) outcome = 'ok';\nelse if (status === 429) outcome = 'capped';\nelse outcome = 'failed';\n\nreturn [{\n  json: {\n    ...pickInput,\n    outcome,\n    statusCode: status,\n    responseBody: body,\n    session_url: body?.session_url || body?.url || null,\n    langfuse_trace_url: body?.langfuse_trace_url || body?.trace_url || null,\n  }\n}];"
+      },
+      "id": "classify-fire",
+      "name": "Classify fire response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 260]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.outcome }}",
+        "rules": {
+          "rules": [
+            { "value2": "ok", "outputKey": "ok" },
+            { "value2": "capped", "outputKey": "capped" },
+            { "value2": "failed", "outputKey": "failed" }
+          ]
+        }
+      },
+      "id": "switch-fire-outcome",
+      "name": "Switch fire outcome",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1740, 260]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://api.linear.app/graphql",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $env.LINEAR_API_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Authorization", "value": "={{ $env.LINEAR_API_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Pick routine').item.json.issueId,\n    body: `⚙ ${$('Pick routine').item.json.routineName} routine fired.\\n\\nSession URL: ${$json.session_url || 'pending'}\\nTrace: ${$json.langfuse_trace_url || 'pending'}`\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `⚙ ${$json.routineName} routine fired.\\n\\nSession URL: ${$json.session_url || 'pending'}\\nTrace: ${$json.langfuse_trace_url || 'pending'}`\n  }\n}) }}",
         "options": {}
       },
       "id": "comment-routine-fired",
       "name": "Comment — routine fired",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1520, 260]
+      "position": [1960, 140]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 429 path: append to deferred_fires static data for the drainer workflow to pick up tomorrow.\nconst input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\nstaticData.deferred_fires = staticData.deferred_fires || [];\n\nconst entry = {\n  issueId: input.issueId,\n  issueIdentifier: input.issueIdentifier,\n  issueTitle: input.issueTitle,\n  issueDescription: input.issueDescription,\n  issueUrl: input.issueUrl,\n  typeLabel: input.typeLabel,\n  appLabel: input.appLabel,\n  allLabels: input.allLabels,\n  routineName: input.routineName,\n  routineUrl: input.routineUrl,\n  routineToken: input.routineToken,\n  firePayloadText: input.firePayloadText,\n  deferredAt: Date.now(),\n};\nstaticData.deferred_fires.push(entry);\n\nreturn [{ json: { ...input, deferredQueueSize: staticData.deferred_fires.length } }];"
+      },
+      "id": "defer-fire",
+      "name": "Defer fire (append to queue)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ $env.LINEAR_API_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `🕐 ${$json.routineName} routine fire deferred — 15/day Max plan cap reached. Will retry at 00:05 UTC via the deferred-fire drainer. Queue size: ${$json.deferredQueueSize}.`\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "comment-deferred",
+      "name": "Comment — deferred",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2180, 280]
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=🕐 Routine fire deferred (15/day cap reached).\nIssue: {{ $json.issueIdentifier }} — {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nQueue size: {{ $json.deferredQueueSize }}\nWill retry at next 00:05 UTC drainer cycle.",
+        "otherOptions": {}
+      },
+      "id": "slack-deferred",
+      "name": "Slack — deferred",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2400, 280],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=❌ Routine fire failed (non-429 error).\nIssue: {{ $json.issueIdentifier }} — {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nStatus: {{ $json.statusCode }}\nBody: {{ JSON.stringify($json.responseBody).slice(0, 500) }}",
+        "otherOptions": {}
+      },
+      "id": "slack-fire-failed",
+      "name": "Slack — fire failed",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1960, 420],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -228,38 +324,15 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1740, 400]
-    },
-    {
-      "parameters": {
-        "channel": "#agent-team",
-        "text": "=❌ Linear Router error\nIssue: {{ $json.issueIdentifier || 'unknown' }} — {{ $json.issueTitle || 'unknown' }}\nStage: {{ $execution.id }}\nError: {{ $json.error?.message || 'unknown' }}",
-        "otherOptions": {}
-      },
-      "id": "slack-error-alert",
-      "name": "Slack — error alert",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [1300, 760],
-      "credentials": {
-        "slackApi": {
-          "id": "REPLACE-WITH-SLACK-CRED-ID",
-          "name": "Slack — #agent-team"
-        }
-      },
-      "onError": "continueRegularOutput"
+      "position": [2620, 400]
     }
   ],
   "connections": {
     "Linear Webhook": {
-      "main": [
-        [{ "node": "Dedup + Parse", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Dedup + Parse", "type": "main", "index": 0 }]]
     },
     "Dedup + Parse": {
-      "main": [
-        [{ "node": "If not skipped", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "If not skipped", "type": "main", "index": 0 }]]
     },
     "If not skipped": {
       "main": [
@@ -275,34 +348,44 @@
       ]
     },
     "Pick routine": {
-      "main": [
-        [{ "node": "Fire routine", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Fire routine", "type": "main", "index": 0 }]]
     },
     "Fire routine": {
+      "main": [[{ "node": "Classify fire response", "type": "main", "index": 0 }]]
+    },
+    "Classify fire response": {
+      "main": [[{ "node": "Switch fire outcome", "type": "main", "index": 0 }]]
+    },
+    "Switch fire outcome": {
       "main": [
-        [{ "node": "Comment — routine fired", "type": "main", "index": 0 }]
+        [{ "node": "Comment — routine fired", "type": "main", "index": 0 }],
+        [{ "node": "Defer fire (append to queue)", "type": "main", "index": 0 }],
+        [{ "node": "Slack — fire failed", "type": "main", "index": 0 }]
       ]
     },
     "Comment — routine fired": {
-      "main": [
-        [{ "node": "Respond OK", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    },
+    "Defer fire (append to queue)": {
+      "main": [[{ "node": "Comment — deferred", "type": "main", "index": 0 }]]
+    },
+    "Comment — deferred": {
+      "main": [[{ "node": "Slack — deferred", "type": "main", "index": 0 }]]
+    },
+    "Slack — deferred": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    },
+    "Slack — fire failed": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
     },
     "Build Paperclip payload": {
-      "main": [
-        [{ "node": "Create Paperclip task", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Create Paperclip task", "type": "main", "index": 0 }]]
     },
     "Create Paperclip task": {
-      "main": [
-        [{ "node": "Comment — Paperclip task created", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Comment — Paperclip task created", "type": "main", "index": 0 }]]
     },
     "Comment — Paperclip task created": {
-      "main": [
-        [{ "node": "Respond OK", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
     }
   },
   "settings": {

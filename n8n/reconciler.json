@@ -1,0 +1,347 @@
+{
+  "name": "Linear Router — Reconciler",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `query StuckIssues($tenMinAgo: DateTimeOrDuration!) {\n    issues(\n      filter: {\n        state: { name: { in: [\\\"Ready for Claude routines\\\", \\\"Ready for agent build\\\"] } }\n        updatedAt: { lt: $tenMinAgo }\n      }\n      first: 50\n    ) {\n      nodes {\n        id\n        identifier\n        title\n        description\n        url\n        updatedAt\n        state { name }\n        labels { nodes { name } }\n      }\n    }\n  }`,\n  variables: {\n    tenMinAgo: new Date(Date.now() - 10*60*1000).toISOString()\n  }\n}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "query-stuck-issues",
+      "name": "Query stuck Linear tickets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten the GraphQL response into one item per ticket.\nconst body = $input.first().json;\nconst nodes = body?.data?.issues?.nodes || [];\nif (nodes.length === 0) {\n  return [{ json: { empty: true, count: 0 } }];\n}\nreturn nodes.map(n => ({\n  json: {\n    issueId: n.id,\n    issueIdentifier: n.identifier,\n    issueTitle: n.title,\n    issueDescription: n.description || '',\n    issueUrl: n.url,\n    updatedAt: n.updatedAt,\n    stateName: n.state.name,\n    labels: (n.labels?.nodes || []).map(l => l.name),\n  }\n}));"
+      },
+      "id": "flatten-tickets",
+      "name": "Flatten tickets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "not-empty",
+              "leftValue": "={{ $json.empty }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEqual" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-tickets",
+      "name": "If any stuck tickets",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [860, 400]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.stateName }}",
+        "rules": {
+          "rules": [
+            { "value2": "Ready for Claude routines", "outputKey": "routine" },
+            { "value2": "Ready for agent build", "outputKey": "paperclip" }
+          ]
+        }
+      },
+      "id": "switch-by-status",
+      "name": "Switch by status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1080, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ $env.LINEAR_API_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `query IssueComments($id: String!) { issue(id: $id) { comments(first: 50) { nodes { body } } } }`,\n  variables: { id: $json.issueId }\n}) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "check-routine-comments",
+      "name": "Check routine fired comments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Look for the main router's \"routine fired\" marker in comments.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst comments = body?.data?.issue?.comments?.nodes || [];\nconst marker = /⚙\\s*(Technical Architect|Analyst|User Researcher|AI Researcher)\\s+routine fired/i;\nconst fired = comments.some(c => marker.test(c.body || ''));\nreturn [{\n  json: {\n    ...ticket,\n    evidence: fired ? 'comment-found' : 'none',\n    missed: !fired,\n  }\n}];"
+      },
+      "id": "routine-evidence-check",
+      "name": "Routine evidence check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 240]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/tasks",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "linear_ticket_id", "value": "={{ $json.issueIdentifier }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "id": "check-paperclip-task",
+      "name": "Check Paperclip task exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Paperclip evidence check. If the GET returns any tasks matching this Linear ticket,\n// the ticket was processed. Tolerate different Paperclip response shapes.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst tasks = Array.isArray(body) ? body : (body?.tasks || body?.data || []);\nconst found = Array.isArray(tasks) && tasks.length > 0;\nreturn [{\n  json: {\n    ...ticket,\n    evidence: found ? 'task-found' : 'none',\n    missed: !found,\n  }\n}];"
+      },
+      "id": "paperclip-evidence-check",
+      "name": "Paperclip evidence check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 440]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-evidence",
+      "name": "Merge evidence",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1740, 340]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "missed-check",
+              "leftValue": "={{ $json.missed }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-missed",
+      "name": "If missed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1960, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_ROUTER_WEBHOOK_URL || 'http://localhost:5678/webhook/linear-router' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Reconciler", "value": "true" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  action: 'update',\n  data: {\n    id: $json.issueId,\n    identifier: $json.issueIdentifier,\n    title: $json.issueTitle,\n    description: $json.issueDescription,\n    url: $json.issueUrl,\n    updatedAt: $json.updatedAt,\n    state: { name: $json.stateName },\n    labels: $json.labels.map(name => ({ name }))\n  }\n}) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "refire-missed",
+      "name": "Re-fire via main router",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2180, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all refired tickets for the summary Slack alert.\nconst items = $input.all();\nconst refired = items.map(i => ({\n  identifier: i.json.issueIdentifier,\n  title: i.json.issueTitle,\n  state: i.json.stateName,\n  url: i.json.issueUrl,\n}));\nreturn [{ json: { count: refired.length, refired } }];"
+      },
+      "id": "collect-refired",
+      "name": "Collect refired",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 280]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "count-gt-0",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-any-refired",
+      "name": "If any refired",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2620, 280]
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=🔁 Reconciler recovered {{ $json.count }} missed fire{{ $json.count === 1 ? '' : 's' }} this cycle:\n{{ $json.refired.map(r => `• ${r.identifier} — ${r.title} (${r.state})`).join('\\n') }}",
+        "otherOptions": {}
+      },
+      "id": "slack-reconciled",
+      "name": "Slack — reconciled",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2840, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Every 15 min": {
+      "main": [[{ "node": "Query stuck Linear tickets", "type": "main", "index": 0 }]]
+    },
+    "Query stuck Linear tickets": {
+      "main": [[{ "node": "Flatten tickets", "type": "main", "index": 0 }]]
+    },
+    "Flatten tickets": {
+      "main": [[{ "node": "If any stuck tickets", "type": "main", "index": 0 }]]
+    },
+    "If any stuck tickets": {
+      "main": [
+        [{ "node": "Switch by status", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Switch by status": {
+      "main": [
+        [{ "node": "Check routine fired comments", "type": "main", "index": 0 }],
+        [{ "node": "Check Paperclip task exists", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check routine fired comments": {
+      "main": [[{ "node": "Routine evidence check", "type": "main", "index": 0 }]]
+    },
+    "Check Paperclip task exists": {
+      "main": [[{ "node": "Paperclip evidence check", "type": "main", "index": 0 }]]
+    },
+    "Routine evidence check": {
+      "main": [[{ "node": "Merge evidence", "type": "main", "index": 0 }]]
+    },
+    "Paperclip evidence check": {
+      "main": [[{ "node": "Merge evidence", "type": "main", "index": 1 }]]
+    },
+    "Merge evidence": {
+      "main": [[{ "node": "If missed", "type": "main", "index": 0 }]]
+    },
+    "If missed": {
+      "main": [
+        [{ "node": "Re-fire via main router", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Re-fire via main router": {
+      "main": [[{ "node": "Collect refired", "type": "main", "index": 0 }]]
+    },
+    "Collect refired": {
+      "main": [[{ "node": "If any refired", "type": "main", "index": 0 }]]
+    },
+    "If any refired": {
+      "main": [
+        [{ "node": "Slack — reconciled", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    { "name": "agent-team" },
+    { "name": "reconciler" }
+  ],
+  "meta": {
+    "instanceId": "agent-team"
+  }
+}

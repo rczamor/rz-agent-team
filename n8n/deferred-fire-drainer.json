@@ -1,0 +1,295 @@
+{
+  "name": "Linear Router — Deferred Fire Drainer",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "5 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily 00:05 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Load deferred_fires from static data, expire anything older than 7 days,\n// and emit one item per entry for processing.\nconst staticData = $getWorkflowStaticData('global');\nstaticData.deferred_fires = staticData.deferred_fires || [];\n\nconst now = Date.now();\nconst sevenDays = 7 * 24 * 60 * 60 * 1000;\n\nconst expired = [];\nconst live = [];\nfor (const entry of staticData.deferred_fires) {\n  if (now - (entry.deferredAt || 0) > sevenDays) expired.push(entry);\n  else live.push(entry);\n}\nstaticData.deferred_fires = live;\n\nif (live.length === 0 && expired.length === 0) {\n  return [{ json: { empty: true, expired: [], live: [] } }];\n}\n\nreturn [{\n  json: {\n    empty: live.length === 0,\n    expired,\n    live,\n    total: live.length,\n  }\n}];"
+      },
+      "id": "load-deferred",
+      "name": "Load + expire deferred",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "has-expired",
+              "leftValue": "={{ $json.expired.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-any-expired",
+      "name": "If any expired",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 280]
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=❌ Deferred fires expired (>7 days unable to drain): {{ $json.expired.length }}\n{{ $json.expired.map(e => `• ${e.issueIdentifier} — ${e.issueTitle} (deferred ${new Date(e.deferredAt).toISOString().slice(0,10)})`).join('\\n') }}\n\nInvestigate the 15/day cap or these tickets manually.",
+        "otherOptions": {}
+      },
+      "id": "slack-expired",
+      "name": "Slack — expired",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [860, 220],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "empty-check",
+              "leftValue": "={{ $json.empty }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEqual" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-any-live",
+      "name": "If any live",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Emit one item per live deferred fire, FIFO (oldest first).\nconst input = $input.first().json;\nconst live = (input.live || []).slice().sort((a, b) => (a.deferredAt || 0) - (b.deferredAt || 0));\nreturn live.map(entry => ({ json: entry }));"
+      },
+      "id": "emit-per-entry",
+      "name": "Emit per entry (FIFO)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.routineUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.routineToken }}" },
+            { "name": "anthropic-beta", "value": "experimental-cc-routine-2026-04-01" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.firePayloadText }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "try-fire",
+      "name": "Try fire",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify the response: 200 → drained, 429 → still at cap, other → failed.\nconst entry = $('Emit per entry (FIFO)').item.json;\nconst resp = $input.first().json;\nconst status = resp.statusCode || resp.status || 0;\nconst staticData = $getWorkflowStaticData('global');\nstaticData.deferred_fires = staticData.deferred_fires || [];\n\nif (status === 200 || status === 201) {\n  // Remove from list\n  staticData.deferred_fires = staticData.deferred_fires.filter(e =>\n    !(e.issueId === entry.issueId && e.deferredAt === entry.deferredAt)\n  );\n  return [{ json: { ...entry, outcome: 'drained', response: resp.body } }];\n}\nif (status === 429) {\n  // Stay deferred — stop processing further entries this cycle\n  return [{ json: { ...entry, outcome: 'still-capped', response: resp.body } }];\n}\n// Other error: remove from list, alert. Dropping protects the list from unfixable entries.\nstaticData.deferred_fires = staticData.deferred_fires.filter(e =>\n  !(e.issueId === entry.issueId && e.deferredAt === entry.deferredAt)\n);\nreturn [{ json: { ...entry, outcome: 'failed', statusCode: status, response: resp.body } }];"
+      },
+      "id": "classify-response",
+      "name": "Classify response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 520]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.outcome }}",
+        "rules": {
+          "rules": [
+            { "value2": "drained", "outputKey": "drained" },
+            { "value2": "still-capped", "outputKey": "capped" },
+            { "value2": "failed", "outputKey": "failed" }
+          ]
+        }
+      },
+      "id": "switch-outcome",
+      "name": "Switch outcome",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1520, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ $env.LINEAR_API_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `🟢 Deferred fire completed — ${$json.routineName} routine fired after cap reset.\\n\\nOriginally deferred at: ${new Date($json.deferredAt).toISOString()}`\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "linear-comment-drained",
+      "name": "Linear comment — drained",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 340]
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=❌ Deferred fire failed: {{ $json.issueIdentifier }} — {{ $json.issueTitle }}\nStatus: {{ $json.statusCode }}\nResponse: {{ JSON.stringify($json.response).slice(0, 500) }}\nRemoved from queue.",
+        "otherOptions": {}
+      },
+      "id": "slack-failed",
+      "name": "Slack — failed",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1740, 680],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Summary Slack post at the end. Reads final static data to count what's drained.\nconst staticData = $getWorkflowStaticData('global');\nconst remaining = (staticData.deferred_fires || []).length;\nreturn [{ json: { remaining, ts: new Date().toISOString() } }];"
+      },
+      "id": "summary",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2180, 520]
+    },
+    {
+      "parameters": {
+        "channel": "#agent-team",
+        "text": "=🟢 Deferred-fire drainer ran at {{ $json.ts }}. Remaining in queue: {{ $json.remaining }}",
+        "otherOptions": {}
+      },
+      "id": "slack-summary",
+      "name": "Slack — summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2400, 520],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — #agent-team"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Daily 00:05 UTC": {
+      "main": [[{ "node": "Load + expire deferred", "type": "main", "index": 0 }]]
+    },
+    "Load + expire deferred": {
+      "main": [[
+        { "node": "If any expired", "type": "main", "index": 0 },
+        { "node": "If any live", "type": "main", "index": 0 }
+      ]]
+    },
+    "If any expired": {
+      "main": [
+        [{ "node": "Slack — expired", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "If any live": {
+      "main": [
+        [{ "node": "Emit per entry (FIFO)", "type": "main", "index": 0 }],
+        [{ "node": "Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "Emit per entry (FIFO)": {
+      "main": [[{ "node": "Try fire", "type": "main", "index": 0 }]]
+    },
+    "Try fire": {
+      "main": [[{ "node": "Classify response", "type": "main", "index": 0 }]]
+    },
+    "Classify response": {
+      "main": [[{ "node": "Switch outcome", "type": "main", "index": 0 }]]
+    },
+    "Switch outcome": {
+      "main": [
+        [{ "node": "Linear comment — drained", "type": "main", "index": 0 }],
+        [{ "node": "Summary", "type": "main", "index": 0 }],
+        [{ "node": "Slack — failed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Linear comment — drained": {
+      "main": [[{ "node": "Summary", "type": "main", "index": 0 }]]
+    },
+    "Slack — failed": {
+      "main": [[{ "node": "Summary", "type": "main", "index": 0 }]]
+    },
+    "Summary": {
+      "main": [[{ "node": "Slack — summary", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    { "name": "agent-team" },
+    { "name": "drainer" }
+  ],
+  "meta": {
+    "instanceId": "agent-team"
+  }
+}
