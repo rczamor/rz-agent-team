@@ -63,7 +63,7 @@ You own the runtime. Docker on the VPS, Vercel for web apps, secrets, monitoring
 
 ## Established VPS facts (current as of latest session)
 
-- SSH: `root@187.124.155.172`, key `~/.ssh/sia_vps`, no passphrase. Helper: `/Users/richezamor/my_apps/agent-team/connect.sh`.
+- SSH: `root@187.124.155.172`. Connection details (user, key path, passphrase status, local paths) are in the operator's auto-memory (`memory/hostinger_vps.md`) and never committed to this repo. Use the `connect.sh` helper from the agent-team worktree to shell in.
 - Hostname: `srv1535988`, public domain root: `srv1535988.hstgr.cloud`.
 - UFW is **inactive**. Public surface controlled solely by Docker port bindings + SSH.
 - Monarx security agent runs (Hostinger-managed): `monarx-agent.service`.

@@ -1,7 +1,18 @@
 .env.local
+.env
+.env.*
+!.env.*.example
+!.env.local.example
 *.pem
+*.key
+*.p12
+*.pfx
 id_*
+sia_vps*
 hostinger_vps*
+known_hosts
+authorized_keys
+.ssh/
 .DS_Store
 
 # Python cache
