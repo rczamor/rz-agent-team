@@ -13,7 +13,10 @@
       "name": "Linear Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 400],
+      "position": [
+        200,
+        400
+      ],
       "webhookId": "linear-router"
     },
     {
@@ -24,7 +27,10 @@
       "name": "Dedup + Parse",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 400]
+      "position": [
+        420,
+        400
+      ]
     },
     {
       "parameters": {
@@ -39,7 +45,10 @@
               "id": "skip-check",
               "leftValue": "={{ $json.skip }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "false" }
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
             }
           ],
           "combinator": "and"
@@ -50,31 +59,80 @@
       "name": "If not skipped",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [640, 400]
+      "position": [
+        640,
+        400
+      ]
     },
     {
       "parameters": {
-        "dataType": "string",
-        "value1": "={{ $json.stateName }}",
+        "mode": "rules",
         "rules": {
-          "rules": [
+          "values": [
             {
-              "value2": "Ready for Claude routines",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-routine",
+                    "leftValue": "={{ $json.stateName }}",
+                    "rightValue": "Ready for Claude routines",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
               "outputKey": "routine"
             },
             {
-              "value2": "Ready for agent build",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-paperclip",
+                    "leftValue": "={{ $json.stateName }}",
+                    "rightValue": "Ready for agent build",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
               "outputKey": "paperclip"
             }
           ]
         },
-        "fallbackOutput": "extra"
+        "options": {
+          "fallbackOutput": "extra"
+        }
       },
       "id": "switch-on-status",
       "name": "Switch on status",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
-      "position": [860, 400]
+      "typeVersion": 3.2,
+      "position": [
+        860,
+        400
+      ]
     },
     {
       "parameters": {
@@ -84,7 +142,10 @@
       "name": "Pick routine",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1080, 260],
+      "position": [
+        1080,
+        260
+      ],
       "onError": "continueErrorOutput"
     },
     {
@@ -125,7 +186,10 @@
       "name": "Fire routine",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1300, 260]
+      "position": [
+        1300,
+        260
+      ]
     },
     {
       "parameters": {
@@ -135,25 +199,103 @@
       "name": "Classify fire response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1520, 260]
+      "position": [
+        1520,
+        260
+      ]
     },
     {
       "parameters": {
-        "dataType": "string",
-        "value1": "={{ $json.outcome }}",
+        "mode": "rules",
         "rules": {
-          "rules": [
-            { "value2": "ok", "outputKey": "ok" },
-            { "value2": "capped", "outputKey": "capped" },
-            { "value2": "failed", "outputKey": "failed" }
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-ok",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "ok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ok"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-capped",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "capped",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "capped"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-failed",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "failed"
+            }
           ]
-        }
+        },
+        "options": {}
       },
       "id": "switch-fire-outcome",
       "name": "Switch fire outcome",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
-      "position": [1740, 260]
+      "typeVersion": 3.2,
+      "position": [
+        1740,
+        260
+      ]
     },
     {
       "parameters": {
@@ -162,8 +304,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "={{ $env.LINEAR_API_TOKEN }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -175,7 +323,10 @@
       "name": "Comment — routine fired",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1960, 140]
+      "position": [
+        1960,
+        140
+      ]
     },
     {
       "parameters": {
@@ -185,7 +336,10 @@
       "name": "Defer fire (append to queue)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1960, 280]
+      "position": [
+        1960,
+        280
+      ]
     },
     {
       "parameters": {
@@ -194,8 +348,14 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "={{ $env.LINEAR_API_TOKEN }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -207,7 +367,10 @@
       "name": "Comment — deferred",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2180, 280]
+      "position": [
+        2180,
+        280
+      ]
     },
     {
       "parameters": {
@@ -219,7 +382,10 @@
       "name": "Slack — deferred",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [2400, 280],
+      "position": [
+        2400,
+        280
+      ],
       "credentials": {
         "slackApi": {
           "id": "REPLACE-WITH-SLACK-CRED-ID",
@@ -238,7 +404,10 @@
       "name": "Slack — fire failed",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [1960, 420],
+      "position": [
+        1960,
+        420
+      ],
       "credentials": {
         "slackApi": {
           "id": "REPLACE-WITH-SLACK-CRED-ID",
@@ -255,7 +424,10 @@
       "name": "Build Paperclip payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1080, 540]
+      "position": [
+        1080,
+        540
+      ]
     },
     {
       "parameters": {
@@ -285,7 +457,10 @@
       "name": "Create Paperclip issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1300, 540]
+      "position": [
+        1300,
+        540
+      ]
     },
     {
       "parameters": {
@@ -313,7 +488,10 @@
       "name": "Comment — Paperclip issue created",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1520, 540]
+      "position": [
+        1520,
+        540
+      ]
     },
     {
       "parameters": {
@@ -325,71 +503,230 @@
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [2620, 400]
+      "position": [
+        2620,
+        400
+      ]
     }
   ],
   "connections": {
     "Linear Webhook": {
-      "main": [[{ "node": "Dedup + Parse", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Dedup + Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Dedup + Parse": {
-      "main": [[{ "node": "If not skipped", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "If not skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "If not skipped": {
       "main": [
-        [{ "node": "Switch on status", "type": "main", "index": 0 }],
-        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Switch on status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Switch on status": {
       "main": [
-        [{ "node": "Pick routine", "type": "main", "index": 0 }],
-        [{ "node": "Build Paperclip payload", "type": "main", "index": 0 }],
-        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Pick routine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Paperclip payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Pick routine": {
       "main": [
-        [{ "node": "Fire routine", "type": "main", "index": 0 }],
-        [{ "node": "Slack — fire failed", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Fire routine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack — fire failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Fire routine": {
-      "main": [[{ "node": "Classify fire response", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Classify fire response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Classify fire response": {
-      "main": [[{ "node": "Switch fire outcome", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Switch fire outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Switch fire outcome": {
       "main": [
-        [{ "node": "Comment — routine fired", "type": "main", "index": 0 }],
-        [{ "node": "Defer fire (append to queue)", "type": "main", "index": 0 }],
-        [{ "node": "Slack — fire failed", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Comment — routine fired",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Defer fire (append to queue)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack — fire failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Comment — routine fired": {
-      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Defer fire (append to queue)": {
-      "main": [[{ "node": "Comment — deferred", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Comment — deferred",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Comment — deferred": {
-      "main": [[{ "node": "Slack — deferred", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Slack — deferred",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Slack — deferred": {
-      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Slack — fire failed": {
-      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Paperclip payload": {
-      "main": [[{ "node": "Create Paperclip issue", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Create Paperclip issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Create Paperclip issue": {
-      "main": [[{ "node": "Comment — Paperclip issue created", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Comment — Paperclip issue created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Comment — Paperclip issue created": {
-      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -399,8 +736,12 @@
     "callerPolicy": "workflowsFromSameOwner"
   },
   "tags": [
-    { "name": "agent-team" },
-    { "name": "router" }
+    {
+      "name": "agent-team"
+    },
+    {
+      "name": "router"
+    }
   ],
   "meta": {
     "instanceId": "agent-team"
