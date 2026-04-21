@@ -219,3 +219,14 @@ After import + credentials + activation of all 3 workflows:
 - Paperclip issue-create response shape is not yet confirmed — the workflow's `Comment — Paperclip issue created` node tolerates `id`, `issue_id`, or `paperclip_issue_id` in the response. Inspect the first real response and tighten if needed.
 - 15 runs/day cap for Claude Code Routines on Max plan. When you hit the cap the main router defers; the drainer retries at 00:05 UTC. If you're routinely hitting the cap, consider requesting additional usage billing from Anthropic.
 - The reconciler calls the main router's own webhook URL. If n8n is reachable only via Traefik/HTTPS externally, the reconciler may need `N8N_ROUTER_WEBHOOK_URL` pointing at the internal Docker service name (`http://n8n:5678/webhook/linear-router`) — adjust if localhost doesn't work.
+
+## Known transient failure modes (and how to handle them)
+
+### "API Error: Stream idle timeout - partial response received"
+Appears mid-session in the Claude Code dashboard. The Anthropic streaming connection timed out between tokens — typically because the model paused too long while drafting a long artifact.
+
+**Recovery:** move the triggering Linear ticket to a different status and back to the trigger status (e.g., Backlog → Ready for Claude routines). Dedup is keyed on `issueId:updatedAt`, so the status bounce creates a new `updatedAt` and lets the re-fire through. Partial outputs from the failed run are not persisted (the session dies before writing to Notion), so the retry starts clean.
+
+**If it recurs on the same ticket 2+ times:** the skill prompt may be producing unusually long/slow responses. Tighten the output template to generate more incrementally — shorter sections, fewer nested requirements per section, less "think step by step" preamble.
+
+First observed: 2026-04-21 on TRZ-421 first fire, during ADR-1 draft.
