@@ -10,7 +10,7 @@ COMPOSE="$REPO_ROOT/deploy/docker-compose.yml"
 ENV_EXAMPLE="$REPO_ROOT/deploy/.env.example"
 # Role names are corpus-style; the openclaw service for `pm-lite` is named
 # `openclaw-pm` (identity/corpus roles don't use the -lite suffix downstream).
-SERVICE_SUFFIXES=(conductor pm researcher designer backend-eng data-eng ai-eng ui-eng qa-eng devops-eng tech-writer)
+SERVICE_SUFFIXES=(conductor pm growth designer backend-eng data-eng ai-eng ui-eng qa-eng devops-eng tech-writer)
 
 @test "deploy/docker-compose.yml exists" {
   [ -f "$COMPOSE" ]

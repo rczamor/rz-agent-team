@@ -13,8 +13,8 @@
 #   bootstrap-openclaw-instance.sh <role>        # e.g. ai-eng
 #   bootstrap-openclaw-instance.sh <role> --out /tmp/preview   # dry preview
 #
-# Roles: conductor pm researcher designer backend-eng data-eng ai-eng ui-eng
-#        qa-eng devops-eng tech-writer
+# Roles: conductor pm designer backend-eng data-eng ai-eng ui-eng
+#        qa-eng devops-eng tech-writer growth
 # ==============================================================================
 
 set -euo pipefail
@@ -22,7 +22,6 @@ set -euo pipefail
 ROLES=(
   conductor
   pm
-  researcher
   designer
   backend-eng
   data-eng
@@ -31,6 +30,7 @@ ROLES=(
   qa-eng
   devops-eng
   tech-writer
+  growth
 )
 
 # Port + tier lookup via case (portable back to bash 3.2, unlike `declare -A`).
@@ -39,7 +39,7 @@ port_for() {
   case "$1" in
     conductor)    echo 47810 ;;
     pm)           echo 47811 ;;
-    researcher)   echo 47812 ;;
+    growth)       echo 47812 ;;
     designer)     echo 47813 ;;
     backend-eng)  echo 47814 ;;
     data-eng)     echo 47815 ;;
@@ -55,7 +55,7 @@ port_for() {
 tier_for() {
   case "$1" in
     conductor|ai-eng) echo opus ;;
-    pm|researcher|designer|backend-eng|data-eng|ui-eng|qa-eng|devops-eng|tech-writer) echo workhorse ;;
+    pm|designer|backend-eng|data-eng|ui-eng|qa-eng|devops-eng|tech-writer|growth) echo workhorse ;;
     *) return 1 ;;
   esac
 }

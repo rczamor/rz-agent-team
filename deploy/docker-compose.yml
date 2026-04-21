@@ -144,16 +144,16 @@ services:
       AGENT_MODEL_TIER: workhorse
       AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_PM}
 
-  # ---- Researcher ----------------------------------------------------------
-  # Desk research, competitive scans, structured summaries.
-  openclaw-researcher:
+  # ---- Growth (narrow-scope exception) -------------------------------------
+  # Feature flags + experiment mechanics on prototypes only.
+  openclaw-growth:
     <<: *openclaw-common
-    container_name: openclaw-researcher
+    container_name: openclaw-growth
     ports:
       - "47812:8080"
     volumes:
-      - ./openclaw/researcher/data:/data
-      - ./openclaw/researcher/corpus:/data/.openclaw/workspace/corpus
+      - ./openclaw/growth/data:/data
+      - ./openclaw/growth/corpus:/data/.openclaw/workspace/corpus
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OLLAMA_API_KEY: ${OLLAMA_API_KEY}
@@ -164,9 +164,9 @@ services:
       AGENT_MEMORY_DSN: ${AGENT_MEMORY_DSN}
       EMBEDDING_BASE_URL: http://ollama:11434
       EMBEDDING_MODEL: nomic-embed-text
-      AGENT_ROLE: researcher
+      AGENT_ROLE: growth
       AGENT_MODEL_TIER: workhorse
-      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_RESEARCHER}
+      AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_GROWTH}
 
   # ---- Designer ------------------------------------------------------------
   # Product/UX design: flows, wireframes, critique, handoffs.

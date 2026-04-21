@@ -33,7 +33,7 @@ OpenClaw instances use the fixed block `47810–47820`, one per role:
 |---|---|
 | 47810 | conductor *(Opus)* |
 | 47811 | pm |
-| 47812 | researcher |
+| 47812 | growth |
 | 47813 | designer |
 | 47814 | backend-eng |
 | 47815 | data-eng |
@@ -72,7 +72,7 @@ vim .env
 docker compose config --quiet
 
 # 6. Pre-create per-role bind mount directories so Docker doesn't own them as root:root
-for role in conductor pm researcher designer backend-eng data-eng ai-eng ui-eng qa-eng devops-eng tech-writer; do
+for role in conductor pm designer backend-eng data-eng ai-eng ui-eng qa-eng devops-eng tech-writer growth; do
   mkdir -p "./openclaw/${role}/data" "./openclaw/${role}/corpus"
 done
 
