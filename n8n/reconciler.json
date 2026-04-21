@@ -217,13 +217,84 @@
     {
       "parameters": {
         "method": "GET",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/labels",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "list-paperclip-labels",
+      "name": "List Paperclip labels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve the `linear:{identifier}` label's UUID from the labels list.\n// Paperclip's issue filter endpoint accepts `?labelId=<uuid>` (singular), so we need the UUID.\n// If the label doesn't exist, no Paperclip issue exists for this Linear ticket -> mark as missed\n// immediately so the FALSE branch of `If label exists` can bypass the issues query.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst labels = Array.isArray(body) ? body : (body?.labels || body?.data || []);\nconst target = `linear:${ticket.issueIdentifier}`;\nconst match = Array.isArray(labels) ? labels.find(l => l && l.name === target) : null;\nif (match && match.id) {\n  return [{\n    json: {\n      ...ticket,\n      linearLabelId: match.id,\n      labelExists: true,\n    }\n  }];\n}\nreturn [{\n  json: {\n    ...ticket,\n    linearLabelId: null,\n    labelExists: false,\n    evidence: 'none',\n    missed: true,\n  }\n}];"
+      },
+      "id": "resolve-linear-label",
+      "name": "Resolve linear label",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "label-exists-check",
+              "leftValue": "={{ $json.labelExists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-label-exists",
+      "name": "If label exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
         "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/issues",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
-              "name": "linear_ticket_id",
-              "value": "={{ $json.issueIdentifier }}"
+              "name": "labelId",
+              "value": "={{ $json.linearLabelId }}"
             }
           ]
         },
@@ -245,21 +316,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
-        440
+        1960,
+        400
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Paperclip evidence check. If the GET returns any issues matching this Linear ticket,\n// the ticket was processed. Tolerate different Paperclip response shapes.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst issues = Array.isArray(body) ? body : (body?.issues || body?.tasks || body?.data || []);\nconst found = Array.isArray(issues) && issues.length > 0;\nreturn [{\n  json: {\n    ...ticket,\n    evidence: found ? 'issue-found' : 'none',\n    missed: !found,\n  }\n}];"
+        "jsCode": "// Paperclip evidence check. The upstream GET filters issues by the linear:{identifier}\n// label UUID resolved in `Resolve linear label`. If any issues came back, the Linear\n// ticket was successfully routed into Paperclip. Tolerate different response shapes.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst issues = Array.isArray(body) ? body : (body?.issues || body?.tasks || body?.data || []);\nconst found = Array.isArray(issues) && issues.length > 0;\nreturn [{\n  json: {\n    ...ticket,\n    evidence: found ? 'issue-found' : 'none',\n    missed: !found,\n  }\n}];"
       },
       "id": "paperclip-evidence-check",
       "name": "Paperclip evidence check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        440
+        2180,
+        400
       ]
     },
     {
@@ -290,7 +361,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1960,
+        2400,
         340
       ]
     },
@@ -323,7 +394,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2180,
+        2620,
         280
       ]
     },
@@ -336,7 +407,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2400,
+        2840,
         280
       ]
     },
@@ -368,7 +439,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2620,
+        3060,
         280
       ]
     },
@@ -391,7 +462,7 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        2840,
+        3280,
         200
       ],
       "credentials": {
@@ -460,7 +531,7 @@
         ],
         [
           {
-            "node": "Check Paperclip task exists",
+            "node": "List Paperclip labels",
             "type": "main",
             "index": 0
           }
@@ -472,6 +543,46 @@
         [
           {
             "node": "Routine evidence check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Paperclip labels": {
+      "main": [
+        [
+          {
+            "node": "Resolve linear label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve linear label": {
+      "main": [
+        [
+          {
+            "node": "If label exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If label exists": {
+      "main": [
+        [
+          {
+            "node": "Check Paperclip task exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If missed",
             "type": "main",
             "index": 0
           }

@@ -438,14 +438,131 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Paperclip task payload.\nconst input = $input.first().json;\n\nconst payload = {\n  linear_ticket_id: input.issueIdentifier,\n  linear_issue_id: input.issueId,\n  linear_url: input.issueUrl,\n  app_id: input.appLabel,\n  title: input.issueTitle,\n  description: input.issueDescription,\n  labels: input.allLabels,\n};\n\nreturn [{ json: { ...input, paperclipPayload: payload } }];"
+        "method": "GET",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/labels",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "list-paperclip-labels",
+      "name": "List Paperclip labels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find-or-create the `linear:{identifier}` label in Paperclip.\n// Paperclip's createIssueSchema has no `linear_ticket_id` field (extra fields are silently\n// dropped), so we persist the Linear ticket -> Paperclip issue link via a label instead.\n// The reconciler can then filter issues by this label's UUID (Paperclip supports ?labelId=<uuid>).\nconst input = $('Dedup + Parse').item.json;\nconst body = $input.first().json;\nconst labels = Array.isArray(body) ? body : (body?.labels || body?.data || []);\nconst target = `linear:${input.issueIdentifier}`;\nconst match = Array.isArray(labels) ? labels.find(l => l && l.name === target) : null;\nif (match && match.id) {\n  return [{\n    json: {\n      ...input,\n      linearLabelId: match.id,\n      needsLabelCreate: false,\n    }\n  }];\n}\n// Color is required by createIssueLabelSchema (6-digit hex). Use Linear's brand purple.\nreturn [{\n  json: {\n    ...input,\n    linearLabelId: null,\n    needsLabelCreate: true,\n    labelCreatePayload: { name: target, color: '#5E6AD2' },\n  }\n}];"
+      },
+      "id": "resolve-linear-label",
+      "name": "Resolve linear label",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-create-check",
+              "leftValue": "={{ $json.needsLabelCreate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-needs-label-create",
+      "name": "If needs label create",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/labels",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.labelCreatePayload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "create-linear-label",
+      "name": "Create linear label",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// POST /api/companies/:id/labels returns 201 with { id, name, color, ... }.\n// Re-attach the ticket fields (which the HTTP node's output replaces with the response body)\n// and hand off the new label UUID to `Build Paperclip payload`.\nconst ticket = $('Resolve linear label').item.json;\nconst resp = $input.first().json;\nconst newId = resp?.id || resp?.data?.id;\nif (!newId) {\n  throw new Error(`Create linear label returned no id. Response: ${JSON.stringify(resp).slice(0, 300)}`);\n}\nreturn [{\n  json: {\n    ...ticket,\n    linearLabelId: newId,\n    needsLabelCreate: false,\n  }\n}];"
+      },
+      "id": "capture-new-label-id",
+      "name": "Capture new label ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Paperclip task payload.\n// NOTE: Paperclip's createIssueSchema only accepts a narrow set of fields; anything extra\n// is silently dropped. `linear_ticket_id`, `linear_issue_id`, `linear_url`, `app_id`, `labels`\n// are kept here for forward-compat / debugging (they're harmless no-ops today). The Linear ->\n// Paperclip link is actually persisted via `labelIds`, resolved by `Resolve linear label` /\n// `Capture new label ID` upstream.\nconst input = $input.first().json;\n\nconst payload = {\n  linear_ticket_id: input.issueIdentifier,\n  linear_issue_id: input.issueId,\n  linear_url: input.issueUrl,\n  app_id: input.appLabel,\n  title: input.issueTitle,\n  description: input.issueDescription,\n  labels: input.allLabels,\n  labelIds: input.linearLabelId ? [input.linearLabelId] : [],\n};\n\nreturn [{ json: { ...input, paperclipPayload: payload } }];"
       },
       "id": "build-paperclip-payload",
       "name": "Build Paperclip payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1080,
+        2180,
         540
       ]
     },
@@ -478,7 +595,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
+        2400,
         540
       ]
     },
@@ -509,7 +626,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1520,
+        2620,
         540
       ]
     },
@@ -524,7 +641,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        2620,
+        2840,
         400
       ]
     }
@@ -581,7 +698,7 @@
         ],
         [
           {
-            "node": "Build Paperclip payload",
+            "node": "List Paperclip labels",
             "type": "main",
             "index": 0
           }
@@ -589,6 +706,68 @@
         [
           {
             "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Paperclip labels": {
+      "main": [
+        [
+          {
+            "node": "Resolve linear label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve linear label": {
+      "main": [
+        [
+          {
+            "node": "If needs label create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If needs label create": {
+      "main": [
+        [
+          {
+            "node": "Create linear label",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Paperclip payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create linear label": {
+      "main": [
+        [
+          {
+            "node": "Capture new label ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture new label ID": {
+      "main": [
+        [
+          {
+            "node": "Build Paperclip payload",
             "type": "main",
             "index": 0
           }
