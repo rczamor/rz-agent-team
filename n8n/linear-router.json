@@ -1,5 +1,5 @@
 {
-  "name": "Linear Router — Routines + Paperclip",
+  "name": "Linear Router \u2014 Routines + Paperclip",
   "active": false,
   "nodes": [
     {
@@ -316,11 +316,11 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `⚙ ${$json.routineName} routine fired.\\n\\nSession: ${$json.claude_code_session_url || 'pending'}\\nSession ID: ${$json.claude_code_session_id || 'pending'}\\n\\n(Langfuse trace URL will be posted by the routine itself on completion.)`\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `\u2699 ${$json.routineName} routine fired.\\n\\nSession: ${$json.claude_code_session_url || 'pending'}\\nSession ID: ${$json.claude_code_session_id || 'pending'}\\n\\n(Langfuse trace URL will be posted by the routine itself on completion.)`\n  }\n}) }}",
         "options": {}
       },
       "id": "comment-routine-fired",
-      "name": "Comment — routine fired",
+      "name": "Comment \u2014 routine fired",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -360,11 +360,11 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `🕐 ${$json.routineName} routine fire deferred — 15/day Max plan cap reached. Will retry at 00:05 UTC via the deferred-fire drainer. Queue size: ${$json.deferredQueueSize}.`\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `\ud83d\udd50 ${$json.routineName} routine fire deferred \u2014 15/day Max plan cap reached. Will retry at 00:05 UTC via the deferred-fire drainer. Queue size: ${$json.deferredQueueSize}.`\n  }\n}) }}",
         "options": {}
       },
       "id": "comment-deferred",
-      "name": "Comment — deferred",
+      "name": "Comment \u2014 deferred",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -374,12 +374,20 @@
     },
     {
       "parameters": {
-        "channel": "#agent-team",
-        "text": "=🕐 Routine fire deferred (15/day cap reached).\nIssue: {{ $json.issueIdentifier }} — {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nQueue size: {{ $json.deferredQueueSize }}\nWill retry at next 00:05 UTC drainer cycle.",
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "=\ud83d\udd50 Routine fire deferred (15/day cap reached).\nIssue: {{ $json.issueIdentifier }} \u2014 {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nQueue size: {{ $json.deferredQueueSize }}\nWill retry at next 00:05 UTC drainer cycle.",
         "otherOptions": {}
       },
       "id": "slack-deferred",
-      "name": "Slack — deferred",
+      "name": "Slack \u2014 deferred",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
@@ -389,19 +397,27 @@
       "credentials": {
         "slackApi": {
           "id": "REPLACE-WITH-SLACK-CRED-ID",
-          "name": "Slack — #agent-team"
+          "name": "Slack \u2014 #agent-team"
         }
       },
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "channel": "#agent-team",
-        "text": "=❌ Routine fire failed (non-429 error).\nIssue: {{ $json.issueIdentifier }} — {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nStatus: {{ $json.statusCode }}\nBody: {{ JSON.stringify($json.responseBody).slice(0, 500) }}",
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "=\u274c Routine fire failed (non-429 error).\nIssue: {{ $json.issueIdentifier }} \u2014 {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nStatus: {{ $json.statusCode }}\nBody: {{ JSON.stringify($json.responseBody).slice(0, 500) }}",
         "otherOptions": {}
       },
       "id": "slack-fire-failed",
-      "name": "Slack — fire failed",
+      "name": "Slack \u2014 fire failed",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
@@ -411,7 +427,7 @@
       "credentials": {
         "slackApi": {
           "id": "REPLACE-WITH-SLACK-CRED-ID",
-          "name": "Slack — #agent-team"
+          "name": "Slack \u2014 #agent-team"
         }
       },
       "onError": "continueRegularOutput"
@@ -481,11 +497,11 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Build Paperclip payload').item.json.issueId,\n    body: `⚙ Paperclip issue created for execution layer.\\n\\nIssue ID: ${$json.id || $json.issue_id || $json.paperclip_issue_id || 'see Paperclip'}\\nApp: ${$('Build Paperclip payload').item.json.appLabel}`\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Build Paperclip payload').item.json.issueId,\n    body: `\u2699 Paperclip issue created for execution layer.\\n\\nIssue ID: ${$json.id || $json.issue_id || $json.paperclip_issue_id || 'see Paperclip'}\\nApp: ${$('Build Paperclip payload').item.json.appLabel}`\n  }\n}) }}",
         "options": {}
       },
       "id": "comment-paperclip-created",
-      "name": "Comment — Paperclip issue created",
+      "name": "Comment \u2014 Paperclip issue created",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -586,7 +602,7 @@
         ],
         [
           {
-            "node": "Slack — fire failed",
+            "node": "Slack \u2014 fire failed",
             "type": "main",
             "index": 0
           }
@@ -619,7 +635,7 @@
       "main": [
         [
           {
-            "node": "Comment — routine fired",
+            "node": "Comment \u2014 routine fired",
             "type": "main",
             "index": 0
           }
@@ -633,14 +649,14 @@
         ],
         [
           {
-            "node": "Slack — fire failed",
+            "node": "Slack \u2014 fire failed",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Comment — routine fired": {
+    "Comment \u2014 routine fired": {
       "main": [
         [
           {
@@ -655,25 +671,25 @@
       "main": [
         [
           {
-            "node": "Comment — deferred",
+            "node": "Comment \u2014 deferred",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Comment — deferred": {
+    "Comment \u2014 deferred": {
       "main": [
         [
           {
-            "node": "Slack — deferred",
+            "node": "Slack \u2014 deferred",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Slack — deferred": {
+    "Slack \u2014 deferred": {
       "main": [
         [
           {
@@ -684,7 +700,7 @@
         ]
       ]
     },
-    "Slack — fire failed": {
+    "Slack \u2014 fire failed": {
       "main": [
         [
           {
@@ -710,14 +726,14 @@
       "main": [
         [
           {
-            "node": "Comment — Paperclip issue created",
+            "node": "Comment \u2014 Paperclip issue created",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Comment — Paperclip issue created": {
+    "Comment \u2014 Paperclip issue created": {
       "main": [
         [
           {

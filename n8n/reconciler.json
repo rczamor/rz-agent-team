@@ -1,5 +1,5 @@
 {
-  "name": "Linear Router — Reconciler",
+  "name": "Linear Router \u2014 Reconciler",
   "active": false,
   "nodes": [
     {
@@ -203,7 +203,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Look for the main router's \"routine fired\" marker in comments.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst comments = body?.data?.issue?.comments?.nodes || [];\nconst marker = /⚙\\s*(Technical Architect|Analyst|User Researcher|AI Researcher)\\s+routine fired/i;\nconst fired = comments.some(c => marker.test(c.body || ''));\nreturn [{\n  json: {\n    ...ticket,\n    evidence: fired ? 'comment-found' : 'none',\n    missed: !fired,\n  }\n}];"
+        "jsCode": "// Look for the main router's \"routine fired\" marker in comments.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst comments = body?.data?.issue?.comments?.nodes || [];\nconst marker = /\u2699\\s*(Technical Architect|Analyst|User Researcher|AI Researcher)\\s+routine fired/i;\nconst fired = comments.some(c => marker.test(c.body || ''));\nreturn [{\n  json: {\n    ...ticket,\n    evidence: fired ? 'comment-found' : 'none',\n    missed: !fired,\n  }\n}];"
       },
       "id": "routine-evidence-check",
       "name": "Routine evidence check",
@@ -374,12 +374,20 @@
     },
     {
       "parameters": {
-        "channel": "#agent-team",
-        "text": "=🔁 Reconciler recovered {{ $json.count }} missed fire{{ $json.count === 1 ? '' : 's' }} this cycle:\n{{ $json.refired.map(r => `• ${r.identifier} — ${r.title} (${r.state})`).join('\\n') }}",
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "=\ud83d\udd01 Reconciler recovered {{ $json.count }} missed fire{{ $json.count === 1 ? '' : 's' }} this cycle:\n{{ $json.refired.map(r => `\u2022 ${r.identifier} \u2014 ${r.title} (${r.state})`).join('\\n') }}",
         "otherOptions": {}
       },
       "id": "slack-reconciled",
-      "name": "Slack — reconciled",
+      "name": "Slack \u2014 reconciled",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
@@ -389,7 +397,7 @@
       "credentials": {
         "slackApi": {
           "id": "REPLACE-WITH-SLACK-CRED-ID",
-          "name": "Slack — #agent-team"
+          "name": "Slack \u2014 #agent-team"
         }
       },
       "onError": "continueRegularOutput"
@@ -541,7 +549,7 @@
       "main": [
         [
           {
-            "node": "Slack — reconciled",
+            "node": "Slack \u2014 reconciled",
             "type": "main",
             "index": 0
           }
