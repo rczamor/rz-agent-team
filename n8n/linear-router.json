@@ -160,6 +160,10 @@
               "value": "=Bearer {{ $json.routineToken }}"
             },
             {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
               "name": "anthropic-beta",
               "value": "experimental-cc-routine-2026-04-01"
             },
