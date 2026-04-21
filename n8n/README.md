@@ -125,6 +125,12 @@ LINEAR_API_TOKEN=lin_api_...
 
 # Reconciler — optional; defaults to localhost
 N8N_ROUTER_WEBHOOK_URL=http://localhost:5678/webhook/linear-router
+
+# REQUIRED: allow Code and HTTP Request nodes to read $env.* variables.
+# n8n 1.x blocks this by default. Without it, Pick routine errors with
+# "access to env vars denied" and the workflow fails silently into the
+# fire-failed Slack alert with blank placeholders.
+N8N_BLOCK_ENV_ACCESS_IN_NODE=false
 ```
 
 ## Dedup + back-pressure state
