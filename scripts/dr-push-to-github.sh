@@ -83,7 +83,15 @@ log "bundle -> encrypt -> push (stamp=$STAMP)"
 mkdir -p "$STAGING/env"
 
 # 1. env files (the irreplaceable bit)
-cp /docker/*/.env "$STAGING/env/" 2>/dev/null || true
+# `cp /docker/*/.env $STAGING/env/` would overwrite itself on each iteration —
+# they all share the same basename (`.env`). Copy each with its project name
+# encoded in the filename so the bundle preserves all of them:
+#   /docker/agent-memory/.env  →  env/agent-memory.env
+for env_file in /docker/*/.env; do
+  [[ -f "$env_file" ]] || continue
+  project=$(basename "$(dirname "$env_file")")
+  cp "$env_file" "$STAGING/env/${project}.env"
+done
 ls -1 /docker/*/.env 2>/dev/null > "$STAGING/env/_manifest.txt"
 
 # 2. pg_dump agent_memory (portable SQL, restorable anywhere)
