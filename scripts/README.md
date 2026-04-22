@@ -13,6 +13,8 @@ that hosts the 11-role OpenClaw fleet.
 | `install-cron.sh` | VPS (once, as root) | Install `corpus-refresh-weekly.sh` to `/usr/local/bin/`, drop `/etc/cron.d/agent-team-corpus`, write systemd timer variant (disabled), ensure `/var/log/agent-team/`. Idempotent. |
 | `consolidate-agent-memory.sh` | VPS (cron, nightly 02:30 UTC) | Nightly consolidation of `agent_memory`: archive sessions older than 90 days, write an audit row to `consolidation_runs`. Embed + dedupe paths gated behind pgvector availability (see TRZ-443). `--dry-run` default, `--apply` mutates. Ticket: TRZ-441. |
 | `memory-health-report.sh` | VPS (weekly cron, Mondays 08:00 UTC) | Emits a JSON Slack webhook payload summarizing `agent_memory` row counts, dupes, archived sessions, and last consolidation run. Pipe output to `curl -X POST $SLACK_WEBHOOK_URL`. Ticket: TRZ-441. |
+| `dr-snapshot.sh` | VPS (on-demand, pre-risky-change) | Creates a Hostinger VPS snapshot via API. Requires `HOSTINGER_API_TOKEN` + `HOSTINGER_VM_ID`. Use before destructive migrations / compose rewrites. Ticket: TRZ-440. |
+| `dr-push-to-github.sh` | VPS (weekly cron, Sundays 03:30 UTC) | Bundle `/docker/*/.env` + `pg_dump agent_memory` + `pg_dump paperclip`, encrypt (gpg AES256), commit to a **private** GitHub repo (`rczamor/rz-agent-team-dr-backups`) at `backups/YYYY/YYYY-MM-DD.tar.gz.gpg`. Retention `DR_RETAIN_WEEKS` (default 12). True offsite — independent from both Hostinger and Riché's laptop. Secrets live in `/root/.agent-team-dr/{passphrase,github-pat}` (mode 600). Ticket: TRZ-440. |
 
 ## Dependencies
 
