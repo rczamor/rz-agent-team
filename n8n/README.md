@@ -240,3 +240,26 @@ Appears mid-session in the Claude Code dashboard. The Anthropic streaming connec
 **If it recurs on the same ticket 2+ times:** the skill prompt may be producing unusually long/slow responses. Tighten the output template to generate more incrementally — shorter sections, fewer nested requirements per section, less "think step by step" preamble.
 
 First observed: 2026-04-21 on TRZ-421 first fire, during ADR-1 draft.
+
+### n8n log: `Unknown filter parameter operator "boolean:notEqual"`
+Emitted by the reconciler's `If any stuck tickets` node. n8n's If-v2 boolean operator set does **not** include `notEqual` — the valid operators are `equals`, `true` (unary), and `false` (unary). Until fixed, the reconciler errors out immediately after `Flatten tickets`, silently swallowing any stuck Linear ticket it was meant to re-fire. Looks like a Linear GraphQL error but it's actually n8n's `FilterParameter` validation (the `boolean:` prefix is operator-type : operation-name, a tell-tale).
+
+**Recovery:** pull the latest `n8n/reconciler.json` from the repo and re-import it into the n8n UI (Workflows → Import from File → overwrite). The `Flatten tickets` code now sets `empty: false` explicitly on ticket items and the If node uses `equals false`. After overwrite, re-activate the workflow (Linear/n8n will log `Deregistered all crons for workflow` on deactivate and re-register on activate — expected).
+
+**Sibling symptom — Linear webhook silent on a repeat Todo→Ready flip:** Linear can debounce identical status transitions fired close together, and any workflow edit that deactivates the workflow also drops the webhook registration n8n had pushed to Linear. Check Linear Settings → API → Webhooks → n8n's `Last Fired` timestamp. If it's stale, re-save the webhook (or bounce the toggle) to refresh registration, then bounce the ticket status to force a new `updatedAt`.
+
+First observed: 2026-04-21 on TRZ-424 (`Ready for agent build` path, Growth agent smoke test).
+
+### Paperclip `/labels` returns `[]` → `List Paperclip labels` emits zero items
+When a Linear ticket is seen for the first time (no `linear:{identifier}` label exists in Paperclip yet), Paperclip's `GET /api/companies/:id/labels` returns a literal empty JSON array `[]`. n8n's HTTP Request v4.2 node **auto-splits any JSON-array response into one item per element** — for `[]` that's zero items — and every downstream node is silently skipped. `alwaysOutputData: true` only kicks in on errors, not on a 200-with-empty-array response, and `response.response.fullResponse: true` didn't change the behavior either on n8n 2.13.4. Net effect: the first fire of every new Linear ticket on the `Ready for agent build` path dropped silently after `Switch on status` — zero Paperclip issues created, but no error surfaced.
+
+**Fix shipped (2026-04-22):** replaced `List Paperclip labels` and (in the reconciler) `Check Paperclip task exists` with Code nodes that use `this.helpers.httpRequest` and return exactly one item regardless of response shape. The downstream `Resolve linear label` and `Paperclip evidence check` Code nodes were simplified to read `$input.first().json.labels` / `.issues` directly. See `linear-router.json` / `reconciler.json` in this directory.
+
+### Critical deploy gotcha: **n8n 2.13.4 runs `workflow_history[activeVersionId]`, not `workflow_entity.nodes`**
+Any tooling that patches n8n workflows via direct SQLite writes needs to update BOTH `workflow_entity` (the draft the UI shows) AND the `workflow_history` row referenced by `workflow_entity.activeVersionId` (what actually executes). Updating only `workflow_entity.nodes` and restarting will look like it worked — the UI reflects the change — but the runtime behavior is unchanged and executions continue running the old code. For repo-driven updates prefer:
+
+1. **UI import** (Workflows → Import from File → overwrite) — n8n correctly promotes the import to a new history row and repoints `activeVersionId`.
+2. **REST API** — `PATCH /api/v1/workflows/:id` with an n8n API key does the same.
+3. **Direct SQLite** — if you must, update the row in `workflow_history` whose `versionId` matches `workflow_entity.activeVersionId`, then `docker restart n8n-n8n-1`. Syncing `workflow_entity.nodes` separately is optional but keeps the UI consistent.
+
+Confirmed 2026-04-22 by patching the history row with a marker-returning Code node and seeing the marker appear in the next execution's runData (previous draft-only patches left runtime unchanged across multiple restarts).

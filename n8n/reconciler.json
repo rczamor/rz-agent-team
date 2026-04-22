@@ -1,6 +1,6 @@
 {
   "name": "Linear Router \u2014 Reconciler",
-  "active": false,
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -13,13 +13,13 @@
           ]
         }
       },
-      "id": "schedule-trigger",
+      "id": "dfcae17b-faf8-4d51-85e3-779af80f1bf5",
       "name": "Every 15 min",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        200,
-        400
+        -7888,
+        1152
       ]
     },
     {
@@ -46,26 +46,26 @@
           "timeout": 30000
         }
       },
-      "id": "query-stuck-issues",
+      "id": "d17ecde5-d644-4af1-b27f-c96458bc5f9f",
       "name": "Query stuck Linear tickets",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        420,
-        400
+        -7664,
+        1152
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Flatten the GraphQL response into one item per ticket.\nconst body = $input.first().json;\nconst nodes = body?.data?.issues?.nodes || [];\nif (nodes.length === 0) {\n  return [{ json: { empty: true, count: 0 } }];\n}\nreturn nodes.map(n => ({\n  json: {\n    issueId: n.id,\n    issueIdentifier: n.identifier,\n    issueTitle: n.title,\n    issueDescription: n.description || '',\n    issueUrl: n.url,\n    updatedAt: n.updatedAt,\n    stateName: n.state.name,\n    labels: (n.labels?.nodes || []).map(l => l.name),\n  }\n}));"
+        "jsCode": "// Flatten the GraphQL response into one item per ticket.\n// Always emit `empty` as an explicit boolean so downstream If node can use\n// a simple `equals false` comparison (n8n's If v2 boolean operator set doesn't\n// include `notEqual`; strict type validation rejects `undefined` against a\n// boolean operand, so leaving the field unset breaks the filter).\nconst body = $input.first().json;\nconst nodes = body?.data?.issues?.nodes || [];\nif (nodes.length === 0) {\n  return [{ json: { empty: true, count: 0 } }];\n}\nreturn nodes.map(n => ({\n  json: {\n    empty: false,\n    issueId: n.id,\n    issueIdentifier: n.identifier,\n    issueTitle: n.title,\n    issueDescription: n.description || '',\n    issueUrl: n.url,\n    updatedAt: n.updatedAt,\n    stateName: n.state.name,\n    labels: (n.labels?.nodes || []).map(l => l.name),\n  }\n}));"
       },
-      "id": "flatten-tickets",
+      "id": "3e5107c3-9cfc-41e0-a0cf-bd6c4073e64d",
       "name": "Flatten tickets",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        640,
-        400
+        -7440,
+        1152
       ]
     },
     {
@@ -80,10 +80,10 @@
             {
               "id": "not-empty",
               "leftValue": "={{ $json.empty }}",
-              "rightValue": true,
+              "rightValue": false,
               "operator": {
                 "type": "boolean",
-                "operation": "notEqual"
+                "operation": "equals"
               }
             }
           ],
@@ -91,18 +91,17 @@
         },
         "options": {}
       },
-      "id": "if-has-tickets",
+      "id": "0857db65-9082-4ae0-8d9a-8edd75109d05",
       "name": "If any stuck tickets",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        860,
-        400
+        -7216,
+        1152
       ]
     },
     {
       "parameters": {
-        "mode": "rules",
         "rules": {
           "values": [
             {
@@ -159,13 +158,13 @@
         },
         "options": {}
       },
-      "id": "switch-by-status",
+      "id": "0a36b6bd-a9e0-4c54-8f08-ec516847b0f7",
       "name": "Switch by status",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1080,
-        340
+        -7008,
+        1088
       ]
     },
     {
@@ -192,65 +191,54 @@
           "timeout": 30000
         }
       },
-      "id": "check-routine-comments",
+      "id": "1551498a-ae61-4082-933c-be81f0408a9b",
       "name": "Check routine fired comments",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
-        240
+        -6784,
+        992
       ]
     },
     {
       "parameters": {
         "jsCode": "// Look for the main router's \"routine fired\" marker in comments.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst comments = body?.data?.issue?.comments?.nodes || [];\nconst marker = /\u2699\\s*(Technical Architect|Analyst|User Researcher|AI Researcher)\\s+routine fired/i;\nconst fired = comments.some(c => marker.test(c.body || ''));\nreturn [{\n  json: {\n    ...ticket,\n    evidence: fired ? 'comment-found' : 'none',\n    missed: !fired,\n  }\n}];"
       },
-      "id": "routine-evidence-check",
+      "id": "771e7d14-016b-4bcd-a1c5-f20e3e22bf47",
       "name": "Routine evidence check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        240
+        -6560,
+        992
       ]
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/labels",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 30000
-        }
+        "mode": "runOnceForAllItems",
+        "jsCode": "// List Paperclip labels via n8n's this.helpers.httpRequest instead of the\n// HTTP Request node. Reason: n8n 2.13.4's HTTP Request v4.2 auto-splits a\n// JSON-array response into N items. When Paperclip returns `[]` (no labels\n// yet), N=0 and every downstream node is skipped \u2014 `Resolve linear label`\n// never runs, `Create linear label` never fires, and the first-seen ticket\n// silently drops. A Code node always emits whatever it returns, independent\n// of response shape.\nconst input = $input.first() ? $input.first().json : {};\nconst url = `${$env.PAPERCLIP_API_URL}/api/companies/${$env.PAPERCLIP_COMPANY_ID}/labels`;\nlet labels = [];\nlet statusCode = 0;\nlet error = null;\ntry {\n  const body = await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    headers: { 'Authorization': `Bearer ${$env.PAPERCLIP_API_KEY}` },\n    json: true,\n  });\n  statusCode = 200;\n  labels = Array.isArray(body) ? body : (body?.labels || body?.data || []);\n} catch (err) {\n  error = String(err && err.message ? err.message : err);\n  statusCode = (err && err.statusCode) || 0;\n}\nreturn [{\n  json: {\n    ...input,\n    labels,\n    labelsStatusCode: statusCode,\n    labelsError: error,\n  }\n}];"
       },
-      "id": "list-paperclip-labels",
+      "id": "1c7829ce-3dfe-470a-8a0a-f682aede3c95",
       "name": "List Paperclip labels",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1300,
-        440
+        -6784,
+        1184
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Resolve the `linear:{identifier}` label's UUID from the labels list.\n// Paperclip's issue filter endpoint accepts `?labelId=<uuid>` (singular), so we need the UUID.\n// If the label doesn't exist, no Paperclip issue exists for this Linear ticket -> mark as missed\n// immediately so the FALSE branch of `If label exists` can bypass the issues query.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst labels = Array.isArray(body) ? body : (body?.labels || body?.data || []);\nconst target = `linear:${ticket.issueIdentifier}`;\nconst match = Array.isArray(labels) ? labels.find(l => l && l.name === target) : null;\nif (match && match.id) {\n  return [{\n    json: {\n      ...ticket,\n      linearLabelId: match.id,\n      labelExists: true,\n    }\n  }];\n}\nreturn [{\n  json: {\n    ...ticket,\n    linearLabelId: null,\n    labelExists: false,\n    evidence: 'none',\n    missed: true,\n  }\n}];"
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Upstream List Paperclip labels is a Code node that always emits one item\n// shaped { labels, labelsStatusCode, labelsError, ...ticket }.\nconst item = $input.first().json;\nconst labels = Array.isArray(item.labels) ? item.labels : [];\nconst target = `linear:${item.issueIdentifier}`;\nconst match = labels.find(l => l && l.name === target);\nif (match && match.id) {\n  return [{ json: { ...item, linearLabelId: match.id, labelExists: true } }];\n}\nreturn [{ json: { ...item, linearLabelId: null, labelExists: false, evidence: 'none', missed: true } }];"
       },
-      "id": "resolve-linear-label",
+      "id": "180c6943-e6d7-4fe7-b653-9ac211de7c63",
       "name": "Resolve linear label",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        440
+        -6560,
+        1184
       ]
     },
     {
@@ -276,61 +264,41 @@
         },
         "options": {}
       },
-      "id": "if-label-exists",
+      "id": "949e658b-a6ec-4375-a504-b3d24d7d934f",
       "name": "If label exists",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1740,
-        440
+        -6336,
+        1184
       ]
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/issues",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "labelId",
-              "value": "={{ $json.linearLabelId }}"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 30000
-        }
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Same reason as List Paperclip labels \u2014 use this.helpers.httpRequest so the\n// node always emits exactly one downstream item regardless of response shape.\nconst input = $input.first() ? $input.first().json : {};\nconst url = `${$env.PAPERCLIP_API_URL}/api/companies/${$env.PAPERCLIP_COMPANY_ID}/issues`;\nlet issues = [];\nlet statusCode = 0;\nlet error = null;\ntry {\n  const body = await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    headers: { 'Authorization': `Bearer ${$env.PAPERCLIP_API_KEY}` },\n    qs: { labelId: input.linearLabelId || '' },\n    json: true,\n  });\n  statusCode = 200;\n  issues = Array.isArray(body) ? body : (body?.issues || body?.tasks || body?.data || []);\n} catch (err) {\n  error = String(err && err.message ? err.message : err);\n  statusCode = (err && err.statusCode) || 0;\n}\nreturn [{\n  json: {\n    ...input,\n    issues,\n    issuesStatusCode: statusCode,\n    issuesError: error,\n  }\n}];"
       },
-      "id": "check-paperclip-task",
+      "id": "37ca0aaf-513e-4b50-802e-df51b9b95604",
       "name": "Check Paperclip task exists",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1960,
-        400
+        -6128,
+        1152
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Paperclip evidence check. The upstream GET filters issues by the linear:{identifier}\n// label UUID resolved in `Resolve linear label`. If any issues came back, the Linear\n// ticket was successfully routed into Paperclip. Tolerate different response shapes.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst issues = Array.isArray(body) ? body : (body?.issues || body?.tasks || body?.data || []);\nconst found = Array.isArray(issues) && issues.length > 0;\nreturn [{\n  json: {\n    ...ticket,\n    evidence: found ? 'issue-found' : 'none',\n    missed: !found,\n  }\n}];"
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Upstream Check Paperclip task exists is a Code node that always emits one\n// item shaped { issues, ...ticket }.\nconst item = $input.first().json;\nconst issues = Array.isArray(item.issues) ? item.issues : [];\nconst found = issues.length > 0;\nreturn [{ json: { ...item, evidence: found ? 'issue-found' : 'none', missed: !found } }];"
       },
-      "id": "paperclip-evidence-check",
+      "id": "e2168f45-dd0e-4346-a6ee-ea0680724a3b",
       "name": "Paperclip evidence check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2180,
-        400
+        -5904,
+        1152
       ]
     },
     {
@@ -356,13 +324,13 @@
         },
         "options": {}
       },
-      "id": "if-missed",
+      "id": "e69a4d6f-4262-438b-97b2-81a9240617c9",
       "name": "If missed",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2400,
-        340
+        -5680,
+        1088
       ]
     },
     {
@@ -389,26 +357,26 @@
           "timeout": 30000
         }
       },
-      "id": "refire-missed",
+      "id": "47259d6c-5c69-4cc1-b5e2-32c5b9f2c62c",
       "name": "Re-fire via main router",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2620,
-        280
+        -5456,
+        1024
       ]
     },
     {
       "parameters": {
         "jsCode": "// Collect all refired tickets for the summary Slack alert.\nconst items = $input.all();\nconst refired = items.map(i => ({\n  identifier: i.json.issueIdentifier,\n  title: i.json.issueTitle,\n  state: i.json.stateName,\n  url: i.json.issueUrl,\n}));\nreturn [{ json: { count: refired.length, refired } }];"
       },
-      "id": "collect-refired",
+      "id": "a37890e3-13d4-41b8-be3e-8ba22ccce89f",
       "name": "Collect refired",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2840,
-        280
+        -5248,
+        1024
       ]
     },
     {
@@ -434,19 +402,17 @@
         },
         "options": {}
       },
-      "id": "if-any-refired",
+      "id": "0fe0adf0-460f-40ae-83ef-27239888f5ec",
       "name": "If any refired",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3060,
-        280
+        -5024,
+        1024
       ]
     },
     {
       "parameters": {
-        "resource": "message",
-        "operation": "post",
         "select": "channel",
         "channelId": {
           "__rl": true,
@@ -457,18 +423,19 @@
         "text": "=\ud83d\udd01 Reconciler recovered {{ $json.count }} missed fire{{ $json.count === 1 ? '' : 's' }} this cycle:\n{{ $json.refired.map(r => `\u2022 ${r.identifier} \u2014 ${r.title} (${r.state})`).join('\\n') }}",
         "otherOptions": {}
       },
-      "id": "slack-reconciled",
+      "id": "ef5b7b7c-5836-4b7c-bedf-ece39645e907",
       "name": "Slack \u2014 reconciled",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        3280,
-        200
+        -4800,
+        944
       ],
+      "webhookId": "035d9099-4c39-43e5-b670-cefa5d0de773",
       "credentials": {
         "slackApi": {
-          "id": "REPLACE-WITH-SLACK-CRED-ID",
-          "name": "Slack \u2014 #agent-team"
+          "id": "1Iv0Fuumdlb06Xq2",
+          "name": "Slack \u2014 agent-team bot"
         }
       },
       "onError": "continueRegularOutput"
@@ -516,8 +483,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Switch by status": {
@@ -630,8 +596,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Re-fire via main router": {
@@ -664,25 +629,16 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     }
   },
   "settings": {
     "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "binaryMode": "separate"
   },
-  "tags": [
-    {
-      "name": "agent-team"
-    },
-    {
-      "name": "reconciler"
-    }
-  ],
+  "tags": [],
   "meta": {
-    "instanceId": "agent-team"
+    "templateCredsSetupCompleted": true
   }
 }
