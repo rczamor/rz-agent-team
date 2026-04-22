@@ -23,10 +23,13 @@
 # repo, and alert on staleness. See the "Monitoring via Claude Code Routine"
 # section at the bottom of this file.
 #
-# Deps on VPS: git, tar, gzip, gpg, docker (for pg_dump)
+# Deps on VPS: git, tar, gzip, gpg, docker (for pg_dump), ssh client
 # Secrets (mode 600, not in git):
-#   /root/.agent-team-dr/passphrase         — backup encryption passphrase
-#   /root/.agent-team-dr/github-pat         — GitHub PAT with repo scope
+#   /root/.agent-team-dr/passphrase   — backup encryption passphrase
+#   /root/.agent-team-dr/ssh-key      — GitHub deploy-key private half (ed25519),
+#                                       registered as a read/write deploy key
+#                                       on the destination repo. Scoped to that
+#                                       repo only — least-privilege vs. a PAT.
 #
 # Schedule:
 #   /etc/cron.d/agent-team-dr  →  weekly Sundays 03:30 UTC
@@ -35,26 +38,31 @@
 set -euo pipefail
 
 # ---- Config ------------------------------------------------------------------
-BACKUP_REPO="${BACKUP_REPO:-github.com/rczamor/rz-agent-team-dr-backups.git}"
+# SSH URL, consumed with GIT_SSH_COMMAND pointing at the deploy key below.
+BACKUP_REPO="${BACKUP_REPO:-git@github.com:rczamor/rz-agent-team-dr-backups.git}"
 BACKUP_BRANCH="${BACKUP_BRANCH:-main}"
 RETAIN_WEEKS="${DR_RETAIN_WEEKS:-12}"
 
 DR_DIR="${DR_DIR:-/root/.agent-team-dr}"
 PASS_FILE="$DR_DIR/passphrase"
-TOKEN_FILE="$DR_DIR/github-pat"
+SSH_KEY_FILE="$DR_DIR/ssh-key"
 
 log() {
   printf '%s [dr-push] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
 }
 
 # ---- Preflight ---------------------------------------------------------------
-[[ -f "$PASS_FILE"  ]] || { log "FATAL: $PASS_FILE missing (gpg passphrase)";       exit 1; }
-[[ -f "$TOKEN_FILE" ]] || { log "FATAL: $TOKEN_FILE missing (GitHub PAT, scope=repo)"; exit 1; }
-[[ "$(stat -c %a "$PASS_FILE")" == "600" ]]  || { log "FATAL: $PASS_FILE must be chmod 600";  exit 1; }
-[[ "$(stat -c %a "$TOKEN_FILE")" == "600" ]] || { log "FATAL: $TOKEN_FILE must be chmod 600"; exit 1; }
+[[ -f "$PASS_FILE"    ]] || { log "FATAL: $PASS_FILE missing (gpg passphrase)";         exit 1; }
+[[ -f "$SSH_KEY_FILE" ]] || { log "FATAL: $SSH_KEY_FILE missing (deploy-key private)";  exit 1; }
+[[ "$(stat -c %a "$PASS_FILE")" == "600" ]]    || { log "FATAL: $PASS_FILE must be chmod 600";    exit 1; }
+[[ "$(stat -c %a "$SSH_KEY_FILE")" == "600" ]] || { log "FATAL: $SSH_KEY_FILE must be chmod 600"; exit 1; }
 
 PASS=$(cat "$PASS_FILE")
-GH_PAT=$(cat "$TOKEN_FILE")
+
+# Use the deploy key for all git operations in this script. Pinning
+# StrictHostKeyChecking=accept-new avoids interactive prompts on first run
+# while still protecting against later MITM.
+export GIT_SSH_COMMAND="ssh -i $SSH_KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 
 command -v git >/dev/null || { log "FATAL: git missing"; exit 1; }
 command -v gpg >/dev/null || { log "FATAL: gpg missing"; exit 1; }
@@ -114,8 +122,7 @@ log "encrypted bundle size_bytes=$SIZE"
 
 # ---- Git push to private repo ------------------------------------------------
 REPO_DIR="$STAGING/repo"
-git clone --depth 1 --branch "$BACKUP_BRANCH" \
-  "https://x-access-token:${GH_PAT}@${BACKUP_REPO}" "$REPO_DIR" 2>&1 | tail -3
+git clone --depth 1 --branch "$BACKUP_BRANCH" "$BACKUP_REPO" "$REPO_DIR" 2>&1 | tail -3
 
 mkdir -p "$REPO_DIR/backups/$YEAR"
 cp "$BUNDLE" "$REPO_DIR/backups/$YEAR/$STAMP.tar.gz.gpg"
@@ -147,10 +154,14 @@ log "done"
 # ==============================================================================
 # RESTORE (run on a recovery VPS or any machine with gpg + the passphrase):
 # ==============================================================================
-#   curl -H "Authorization: token $GH_PAT" \
-#        -H "Accept: application/vnd.github.raw" \
-#        -o /tmp/restore.tar.gz.gpg \
-#        https://api.github.com/repos/rczamor/rz-agent-team-dr-backups/contents/backups/2026/2026-04-22.tar.gz.gpg
+#   # If you have gh CLI + repo access:
+#   gh api repos/rczamor/rz-agent-team-dr-backups/contents/backups/2026/2026-04-22.tar.gz.gpg \
+#        -H 'Accept: application/vnd.github.raw' > /tmp/restore.tar.gz.gpg
+#   # Or via git + deploy key:
+#   GIT_SSH_COMMAND="ssh -i /root/.agent-team-dr/ssh-key" \
+#     git clone --depth 1 git@github.com:rczamor/rz-agent-team-dr-backups.git /tmp/rzdr
+#   cp /tmp/rzdr/backups/2026/2026-04-22.tar.gz.gpg /tmp/restore.tar.gz.gpg
+#
 #   gpg --batch --passphrase "$(cat /root/.agent-team-dr/passphrase)" --decrypt /tmp/restore.tar.gz.gpg \
 #     | tar -xzf - -C /tmp/restored
 #   # Inspect /tmp/restored/env/*.env and agent_memory.sql before applying.
