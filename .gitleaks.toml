@@ -1,0 +1,61 @@
+# gitleaks config for rz-agent-team
+# Inherits the default rules and layers on repo-specific allowlists + custom patterns.
+#
+# Default rules catch: AWS keys, GitHub tokens, Slack tokens, generic API keys, private keys, etc.
+# See https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml for the base ruleset.
+
+[extend]
+useDefault = true
+
+# ---- Custom rules for keys specific to this stack ------------------------------
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-(?:api|oat)[0-9]{2}-[A-Za-z0-9_-]{32,}'''
+tags = ["key", "anthropic"]
+
+[[rules]]
+id = "paperclip-api-key"
+description = "Paperclip API key (pcp_ or pc_ prefix)"
+regex = '''pcp?_[A-Za-z0-9]{32,}'''
+tags = ["key", "paperclip"]
+
+[[rules]]
+id = "langfuse-key"
+description = "Langfuse public or secret key"
+regex = '''(?:pk|sk)-lf-[a-f0-9]{32,}'''
+tags = ["key", "langfuse"]
+
+[[rules]]
+id = "ollama-api-key"
+description = "Ollama Cloud API key"
+regex = '''[a-f0-9]{32}\.[A-Za-z0-9_-]{16,}'''
+tags = ["key", "ollama"]
+
+[[rules]]
+id = "linear-api-token"
+description = "Linear API token"
+regex = '''lin_api_[A-Za-z0-9]{32,}'''
+tags = ["key", "linear"]
+
+# ---- Allowlist ---------------------------------------------------------------
+# Things that look like secrets but aren't.
+
+[allowlist]
+paths = [
+  '''(.*/)?\.env\.local\.example$''',           # template shows placeholder shapes
+  '''(.*/)?\.env\.example$''',
+  '''(.*/)?plugins/ROUTINE_SETUP\.md$''',       # docs intentionally show example token shapes
+  '''(.*/)?n8n/README\.md$''',                   # same — setup docs
+  '''(.*/)?deploy/README\.md$''',
+]
+regexes = [
+  '''sk-ant-api03-\.\.\.''',      # doc placeholder
+  '''sk-ant-oat01-\.\.\.''',      # doc placeholder
+  '''pcp?_\.\.\.''',              # doc placeholder
+  '''pk-lf-\.\.\.''',             # doc placeholder
+  '''sk-lf-\.\.\.''',             # doc placeholder
+  '''lin_api_\.\.\.''',           # doc placeholder
+  '''xoxb-\.\.\.''',              # doc placeholder
+]
