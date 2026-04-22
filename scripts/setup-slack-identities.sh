@@ -147,7 +147,7 @@ resolve_channel_ids() {
   local cursor="" id
   local all_json="[]"
   while :; do
-    local args="limit=200&types=public_channel,private_channel"
+    local args="limit=200&types=public_channel"
     [[ -n "$cursor" ]] && args="${args}&cursor=${cursor}"
     local page
     page=$(slack_call GET "conversations.list" "$token" "$args") \
@@ -182,18 +182,21 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-# Step 2 — join each bot to each channel.
+# Step 2 — join each bot to each channel. Results stored as TSV in a tempfile
+# (bash 3.2 compatible — no associative arrays).
 echo "[step 2] joining 11 bots × 9 channels = 99 joins"
-declare -A RESULTS
+RESULTS_FILE="$(mktemp)"
+trap 'rm -f "$RESULTS_FILE"' EXIT
+
 for role in "${ROLES[@]}"; do
   var="$(token_var "$role")"
   token="${!var}"
   while IFS=$'\t' read -r ch_name ch_id; do
     [[ -z "$ch_id" ]] && continue
     if slack_call POST "conversations.join" "$token" "{\"channel\":\"${ch_id}\"}" >/dev/null; then
-      RESULTS["${role}/${ch_name}"]="ok"
+      printf '%s\t%s\tok\n'   "$role" "$ch_name" >> "$RESULTS_FILE"
     else
-      RESULTS["${role}/${ch_name}"]="FAIL"
+      printf '%s\t%s\tFAIL\n' "$role" "$ch_name" >> "$RESULTS_FILE"
     fi
   done <<< "$CHANNEL_MAP"
 done
@@ -208,9 +211,9 @@ if [[ "$SKIP_SMOKE" -eq 0 ]]; then
     body=$(jq -nc --arg ch "$AGENT_TEAM_ID" --arg t "STATUS: @${role} bot online — TRZ-322 setup smoke test." \
       '{channel:$ch, text:$t}')
     if slack_call POST "chat.postMessage" "$token" "$body" >/dev/null; then
-      RESULTS["${role}/smoke"]="ok"
+      printf '%s\tsmoke\tok\n'   "$role" >> "$RESULTS_FILE"
     else
-      RESULTS["${role}/smoke"]="FAIL"
+      printf '%s\tsmoke\tFAIL\n' "$role" >> "$RESULTS_FILE"
     fi
   done
 fi
@@ -218,6 +221,10 @@ fi
 # ------------------------------------------------------------------------------
 # Report
 # ------------------------------------------------------------------------------
+lookup() {
+  awk -v r="$1" -v k="$2" -F'\t' '$1==r && $2==k {print $3; exit}' "$RESULTS_FILE"
+}
+
 echo ""
 echo "[report] results grid:"
 printf "%-14s" "role"
@@ -226,13 +233,14 @@ printf " %-5s\n" "smoke"
 for role in "${ROLES[@]}"; do
   printf "%-14s" "$role"
   for ch in "${CHANNELS[@]}"; do
-    printf " %-5s" "${RESULTS["${role}/${ch}"]:--}"
+    result="$(lookup "$role" "$ch")"
+    printf " %-5s" "${result:--}"
   done
-  printf " %-5s\n" "${RESULTS["${role}/smoke"]:--}"
+  result="$(lookup "$role" "smoke")"
+  printf " %-5s\n" "${result:--}"
 done
 
-fail_count=0
-for v in "${RESULTS[@]}"; do [[ "$v" == "FAIL" ]] && fail_count=$((fail_count + 1)); done
+fail_count=$(awk -F'\t' '$3=="FAIL"{n++} END{print n+0}' "$RESULTS_FILE")
 echo ""
 if [[ "$fail_count" -eq 0 ]]; then
   echo "[done] all operations succeeded."
