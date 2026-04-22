@@ -56,6 +56,7 @@ Recommended mapping:
 | Structured markdown containing `app_id`, `linear_url`, `assigned_role`, `target_files`, `acceptance_criteria`, `langfuse_session_id`, `portfolio_action_id` | `description` |
 | map priority label (`P0`/`P1`/…) | `priority` (`low` / `medium` / `high` / `urgent`) |
 | (none) | `assigneeAgentId` — use the role-matching agent UUID from the agents list in the company |
+| `[<linear:{identifier} label UUID>]` | `labelIds` — persists the Linear ↔ Paperclip link so the reconciler can query `GET /issues?labelId=<uuid>`. Find-or-create the label via `GET /labels` then `POST /labels {name: "linear:RIC-17", color: "#5E6AD2"}` if missing. See n8n `linear-router.json` for the canonical implementation. |
 
 ## Output
 
@@ -103,5 +104,6 @@ The API response returns both a `id` (UUID) and an `identifier` (`RIC-{n}`, base
 
 ## Known gaps to address
 
-- **Reconciler bug (CAR-370):** `reconciler.json` queries `GET /api/companies/:id/issues?linear_ticket_id=…` but Paperclip's schema has no `linear_ticket_id` field, so the POST silently drops the query param and every reconciler poll returns "no task exists" — forcing the router to re-fire indefinitely. Fix options: (a) extend `createIssueSchema` + `updateIssueSchema` in Paperclip itself to persist `linear_ticket_id`; (b) add a `linear:TICKET-ID` label on each Paperclip issue and change the reconciler to filter by `labelIds`; (c) serialize in description and grep server-side.
+- ~~**Reconciler bug (CAR-370):** `reconciler.json` queried `GET /api/companies/:id/issues?linear_ticket_id=…` but Paperclip's schema has no `linear_ticket_id` field, so the query param was silently dropped and every reconciler poll returned "no task exists" — forcing the router to re-fire indefinitely.~~ **Fixed 2026-04-21** via option (b): the linear-router now find-or-creates a `linear:{identifier}` label before issue creation and attaches it via `labelIds`; the reconciler resolves the label UUID and filters with `?labelId=<uuid>`. If the label itself is missing, the reconciler treats the ticket as missed and re-fires directly. Paperclip's `createIssueSchema`/`updateIssueSchema` were not modified — this is pure n8n-side.
 - **Linear-comment step runs regardless of Linear issue existence:** the n8n `Comment — Paperclip issue created` node uses Linear's `commentCreate` mutation with `issueId`. A fake/nonexistent UUID returns `{success: false}` (HTTP 200), so the workflow records success. If you need hard verification, add a post-step check on `commentCreate.success`.
+- **Label proliferation:** each distinct Linear ticket gets its own `linear:TICKET-ID` label in Paperclip. At expected volumes (tens per week) this is fine for a long time, but `GET /labels` has no pagination in Paperclip today — when label count grows large enough that the listing slows down, either add pagination upstream or switch to a label-detail lookup-by-name endpoint.

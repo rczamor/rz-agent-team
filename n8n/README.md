@@ -31,10 +31,16 @@ Linear issue status change webhook
   │           └─ other error → Slack alert, no retry
   │
   ├─ If status = "Ready for agent build"
-  │    → POST to Paperclip API → comment task ID back on Linear
+  │    → Find-or-create a `linear:{identifier}` label in Paperclip
+  │    → POST to Paperclip API with `labelIds: [<that-label-uuid>]`
+  │    → comment task ID back on Linear
   │
   └─ Respond OK to Linear webhook
 ```
+
+### Why the `linear:{identifier}` label
+
+Paperclip's `createIssueSchema` (`@paperclipai/shared/validators/issue.js`) only accepts a narrow set of fields — `title`, `description`, `priority`, `labelIds`, etc. Extra fields like `linear_ticket_id` are silently dropped. To preserve the Linear ↔ Paperclip link in a way the reconciler can query, the router creates a one-off label per Linear ticket (`linear:RIC-17` style) and tags the Paperclip issue with it. The reconciler then filters issues via `GET /api/companies/:id/issues?labelId=<uuid>`. Find-or-create is done in two steps (`GET /labels` → search by name → `POST /labels` if missing) because Paperclip's label-create endpoint is a plain insert with no upsert semantics.
 
 ### 429 handling
 
@@ -53,7 +59,11 @@ Query Linear: issues in trigger statuses, updatedAt > 10 min ago
   ↓
 For each ticket, check evidence of prior processing:
   ├─ Ready for Claude routines → Linear comments contain "⚙ {Routine} routine fired"
-  └─ Ready for agent build → Paperclip task exists with linear_ticket_id
+  └─ Ready for agent build → A `linear:{identifier}` label exists in Paperclip
+                              AND at least one issue is tagged with it
+                              (GET /labels → resolve UUID → GET /issues?labelId=UUID)
+                              If the label doesn't exist, the ticket is treated as
+                              missed and re-fired.
   ↓
 If no evidence → POST to main router's webhook URL (synthetic Linear payload)
   → main router's dedup cache handles idempotency
