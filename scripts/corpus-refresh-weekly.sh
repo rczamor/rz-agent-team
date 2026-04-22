@@ -32,10 +32,12 @@ LOG_DIR="${AGENT_TEAM_LOG_DIR:-/var/log/agent-team}"
 LOG_FILE="${LOG_DIR}/corpus-refresh.log"
 LOG_ROTATIONS="${AGENT_TEAM_LOG_ROTATIONS:-12}"
 
+# Post-2026-04-18: researcher role retired (TRZ-356), split into 4 strategic
+# routines that run on Anthropic's cloud. @growth (TRZ-367) added as the 11th
+# role. Keep this list in sync with repo/TEAM.md and repo/identities/.
 ROLES=(
   conductor
   pm
-  researcher
   designer
   backend-eng
   data-eng
@@ -44,6 +46,7 @@ ROLES=(
   qa-eng
   devops-eng
   tech-writer
+  growth
 )
 
 # ------------------------------------------------------------------------------
