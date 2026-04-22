@@ -11,6 +11,8 @@ that hosts the 11-role OpenClaw fleet.
 | `deploy-identities.sh` | local (pushes via SSH) | Sync `TEAM.md`, `USER.md`, per-role `IDENTITY.md`, corpus, and shared skills into each running OpenClaw workspace. Optionally restarts containers. |
 | `corpus-refresh-weekly.sh` | VPS (cron/systemd) | Pull latest repo, refresh every instance's corpus + identity, write `.last-refresh` receipt, rotate log. |
 | `install-cron.sh` | VPS (once, as root) | Install `corpus-refresh-weekly.sh` to `/usr/local/bin/`, drop `/etc/cron.d/agent-team-corpus`, write systemd timer variant (disabled), ensure `/var/log/agent-team/`. Idempotent. |
+| `consolidate-agent-memory.sh` | VPS (cron, nightly 02:30 UTC) | Nightly consolidation of `agent_memory`: archive sessions older than 90 days, write an audit row to `consolidation_runs`. Embed + dedupe paths gated behind pgvector availability (see TRZ-443). `--dry-run` default, `--apply` mutates. Ticket: TRZ-441. |
+| `memory-health-report.sh` | VPS (weekly cron, Mondays 08:00 UTC) | Emits a JSON Slack webhook payload summarizing `agent_memory` row counts, dupes, archived sessions, and last consolidation run. Pipe output to `curl -X POST $SLACK_WEBHOOK_URL`. Ticket: TRZ-441. |
 
 ## Dependencies
 
