@@ -296,6 +296,50 @@ Read the full operating rules in /rz-ai-researcher-session before proceeding.
 | Linear comment never appears | Linear connector not attached | Re-add the Linear connector to the routine |
 | Over 15/day cap | Expected; n8n defers | See [CAR-371](https://linear.app/riche-life/issue/CAR-371) drainer |
 
+---
+
+## Execution-layer plugins (rz-* for the 10 OpenClaw instances)
+
+Separate from the 4 strategic routines above, the execution layer has 10 `rz-*` session skills — one per execution agent (Conductor, AI Eng, PM-lite, Designer, Backend Eng, Data Eng, UI Eng, QA Eng, DevOps Eng, Tech Writer). Authoring pattern mirrors the strategic plugins in this directory but deploy target is different: each skill installs into a dedicated OpenClaw instance on the Hostinger VPS, not into Claude Code Routines on Anthropic's cloud.
+
+**Source location:**
+
+```
+repo/plugins/
+├── rz-conductor/skills/session/SKILL.md
+├── rz-ai-eng/skills/session/SKILL.md
+├── rz-backend-eng/skills/session/SKILL.md
+├── rz-data-eng/skills/session/SKILL.md
+├── rz-ui-eng/skills/session/SKILL.md
+├── rz-qa-eng/skills/session/SKILL.md
+├── rz-devops-eng/skills/session/SKILL.md
+├── rz-designer/skills/session/SKILL.md
+├── rz-pm-lite/skills/session/SKILL.md
+└── rz-tech-writer/skills/session/SKILL.md
+```
+
+**VPS deploy target** (DevOps Eng owns):
+
+```
+/docker/openclaw-{role}/data/.openclaw/skills/rz-{role}/SKILL.md
+```
+
+One instance per role. DevOps Eng copies the skill file at container build/deploy time; the skill is NOT checked out from `rczamor/rz-agent-team` at session start (unlike strategic routines).
+
+**Frontmatter convention** (differs from strategic plugins):
+
+- `metadata.clawdbot.env_vars_required` — enumerated env vars the skill needs mounted from `/etc/openclaw/secrets/{app_id}.env`.
+- `metadata.clawdbot.binaries_required` — binaries the container must have installed (e.g., `docker`, `vercel`, `pytest`).
+- `metadata.clawdbot.shared_skills_loaded_first` — references to the four shared skills at [repo/skills/shared/](../skills/shared/) that every agent auto-loads.
+- `metadata.clawdbot.model_primary: Kimi K2.6` — single model across the execution layer (Qwen 3.5 retired April 22, 2026).
+- `metadata.clawdbot.escalation` — how this role reaches beyond the execution layer. Conductor escalates via Linear `type:*` tickets; other roles escalate via Conductor.
+
+**Review cadence:** per the [Execution Agent Tools & Skills](https://www.notion.so/34aac0ea4f65815e9e14ebb13ca1a341) Notion doc, each new execution-layer skill requires review by Riché + Conductor before it lands in `~/.openclaw/skills`. Monthly Langfuse trace review checks for unexpected tool calls; quarterly the bundled-skill list is re-diffed against our allow-list.
+
+**Key distinction from strategic routines (this file's earlier sections):** execution agents ship code. Strategic routines do not. Execution agents write to `agent_memory` and post operational Slack. Strategic routines do neither — their output is Notion artifacts + Linear comments only.
+
+---
+
 ## References
 
 - [Routines docs](https://code.claude.com/docs/en/routines)
@@ -306,3 +350,4 @@ Read the full operating rules in /rz-ai-researcher-session before proceeding.
 - [CAR-381](https://linear.app/riche-life/issue/CAR-381) — skill symlinks for routine discovery
 - [CAR-384](https://linear.app/riche-life/issue/CAR-384) — Notion hub pages
 - [CAR-385](https://linear.app/riche-life/issue/CAR-385) — this setup guide
+- [🔒 Execution Agent Tools & Skills](https://www.notion.so/34aac0ea4f65815e9e14ebb13ca1a341) — execution-layer skill policy

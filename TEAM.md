@@ -40,30 +40,30 @@ Label routing for strategic:
 
 ## Core execution roster (10)
 
-All runtime on OpenClaw on the Hostinger VPS. Default model is Qwen 3.5 (Ollama Cloud). Conductor and AI Engineer have different primary models.
+All runtime on OpenClaw on the Hostinger VPS. Default model is Kimi K2.6 via Ollama Cloud for all 10 execution agents including Conductor and AI Engineer — single execution model across the entire layer (April 22, 2026 amendment; Qwen 3.5 retired).
 
 | Role | Slack handle | LLM tier | Owns |
 |---|---|---|---|
-| Conductor | `@conductor` | Claude Opus 4.7 (primary) | Orchestration, dispatch, review, Linear ↔ Paperclip bridge |
-| PM-lite | `@pm` | Qwen 3.5 (Opus 4.7 escalation) | Linear ticket structure, acceptance criteria, Notion spec hygiene |
-| Designer | `@designer` | Qwen 3.5 (Opus 4.7 escalation) | Notion design specs, `design-prototype/` directories (code-first prototypes) |
-| Backend Eng | `@backend-eng` | Qwen 3.5 (Opus 4.7 escalation) | API endpoints, auth, DB layer, business logic, providers |
-| Data Eng | `@data-eng` | Qwen 3.5 (Opus 4.7 escalation) | Ingestion, publishing, analytics, lineage, ETL |
-| AI Eng | `@ai-eng` | Kimi K2.5 (primary, Opus 4.7 escalation) | Langfuse prompts, consolidation/generation pipelines, search tuning, MCP tools |
-| UI Eng | `@ui-eng` | Qwen 3.5 (Opus 4.7 escalation) | Production UI from Designer prototypes, templates, components, a11y |
-| QA Eng | `@qa-eng` | Qwen 3.5 (Opus 4.7 escalation) | Test suites, integration + E2E, work validation against acceptance criteria |
-| DevOps | `@devops-eng` | Qwen 3.5 (Opus 4.7 escalation) | Docker/Vercel deploys, infra-as-code, secrets, monitoring, OpenClaw ops |
-| Tech Writer | `@tech-writer` | Qwen 3.5 (Opus 4.7 escalation) | Notion spec hygiene, READMEs, docstrings, API docs, IDENTITY.md files |
+| Conductor | `@conductor` | Kimi K2.6 (strategic escalation) | Orchestration, dispatch, review, Linear ↔ Paperclip bridge |
+| PM-lite | `@pm` | Kimi K2.6 (strategic escalation) | Linear ticket structure, acceptance criteria, Notion spec hygiene |
+| Designer | `@designer` | Kimi K2.6 (strategic escalation) | Notion design specs, `design-prototype/` directories (code-first prototypes) |
+| Backend Eng | `@backend-eng` | Kimi K2.6 (strategic escalation) | API endpoints, auth, DB layer, business logic, providers |
+| Data Eng | `@data-eng` | Kimi K2.6 (strategic escalation) | Ingestion, publishing, analytics, lineage, ETL |
+| AI Eng | `@ai-eng` | Kimi K2.6 (strategic escalation) | Langfuse prompts, consolidation/generation pipelines, search tuning, MCP tools |
+| UI Eng | `@ui-eng` | Kimi K2.6 (strategic escalation) | Production UI from Designer prototypes, templates, components, a11y |
+| QA Eng | `@qa-eng` | Kimi K2.6 (strategic escalation) | Test suites, integration + E2E, work validation against acceptance criteria |
+| DevOps | `@devops-eng` | Kimi K2.6 (strategic escalation) | Docker/Vercel deploys, infra-as-code, secrets, monitoring, OpenClaw ops |
+| Tech Writer | `@tech-writer` | Kimi K2.6 (strategic escalation) | Notion spec hygiene, READMEs, docstrings, API docs, IDENTITY.md files |
 
-**Model rationale:** Kimi K2.5 (AI Eng) has the highest open-source SWE-bench Verified score and is the highest-stakes coding role. Qwen 3.5 (8 workhorses + @growth) is Apache 2.0, 256K context, and strong at tool use — one workhorse model keeps prompts consistent across roles.
+**Model rationale:** Kimi K2.6 beats Opus 4.6 on SWE-Bench Pro (58.6 vs 53.4) and matches on SWE-Bench Verified (80.2 vs 80.8). Sustained 12+ hr autonomous runs with 4,000+ tool calls. Single model across the entire execution layer (Conductor + AI Eng + 8 workhorses + @growth) keeps prompts, handoffs, and memory reads consistent. Qwen 3.5 retired April 22, 2026.
 
-**Prototype override:** For prototype apps (Recipe Remix, Ploppy, Blocade, Ascend, Trend Analyzer, AI Onboarding), Conductor downgrades to Qwen 3.5 to minimize cost on throwaway work. AI Eng stays on Kimi K2.5.
+**Prototype override:** None. Every execution agent runs Kimi K2.6 on prototypes and flagship apps alike. Strategic routines stay on Opus 4.7 regardless of target.
 
 ## Execution exception (1)
 
 | Role | Slack handle | LLM | Owns |
 |---|---|---|---|
-| Growth | `@growth` | Qwen 3.5 (Opus 4.7 escalation) | GrowthBook feature flags, experiments, Safe Rollouts on prototypes only |
+| Growth | `@growth` | Kimi K2.6 (strategic escalation) | GrowthBook feature flags, experiments, Safe Rollouts on prototypes only |
 
 @growth is a mechanics-only execution agent. Narrow scope: flag creation, experiment execution, auto-ship when criteria met, stale-flag audits. Never touches SIA or Website flags. Never makes strategy calls. See [Growth Agent](https://www.notion.so/345ac0ea4f658105b8e7dbeedd50638f) for full spec.
 
