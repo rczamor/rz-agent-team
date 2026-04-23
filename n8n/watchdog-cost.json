@@ -1,0 +1,95 @@
+{
+  "name": "Agent Team Watchdog — Daily Cost Summary",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "5 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger-daily",
+      "name": "Daily 08:05 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://langfuse-web:3000/api/public/traces?fromTimestamp={{ new Date(Date.now() - 24*60*60*1000).toISOString() }}&toTimestamp={{ new Date().toISOString() }}&limit=1000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": { "response": { "fullResponse": true, "neverError": true } }
+        }
+      },
+      "id": "query-langfuse-24h",
+      "name": "Query Langfuse (last 24h)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 0],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REPLACE-WITH-LANGFUSE-BASIC-AUTH-CRED-ID",
+          "name": "Langfuse public API — PK/SK"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate cost per agent (role) over the last 24h from Langfuse traces.\nconst resp = $input.first().json;\nconst status = resp.statusCode || 0;\nif (status !== 200) {\n  return [{ json: { skip: false, error: true, reason: `langfuse ${status}`, details: JSON.stringify(resp.body || {}).slice(0, 300) } }];\n}\n\nconst traces = resp.body?.data || [];\nconst byRole = {};\nlet total = 0;\nlet totalCalls = 0;\nfor (const t of traces) {\n  const role = t.metadata?.agent_role || t.userId || 'unknown';\n  const cost = (t.totalCost ?? 0);\n  const calls = (t.observations || []).filter(o => o.type === 'GENERATION').length || 1;\n  if (!byRole[role]) byRole[role] = { cost: 0, calls: 0 };\n  byRole[role].cost += cost;\n  byRole[role].calls += calls;\n  total += cost;\n  totalCalls += calls;\n}\n\nconst top = Object.entries(byRole)\n  .map(([role, v]) => ({ role, ...v }))\n  .sort((a, b) => b.cost - a.cost)\n  .slice(0, 5);\n\nconst fmt = (n) => '$' + n.toFixed(4);\nconst alertThreshold = 10; // $/day\n\nreturn [{\n  json: {\n    skip: false,\n    error: false,\n    total,\n    totalCalls,\n    totalFormatted: fmt(total),\n    top,\n    topFormatted: top.map(t => `${t.role}=${fmt(t.cost)} (${t.calls} calls)`).join(', '),\n    exceedsThreshold: total > alertThreshold,\n    alertThreshold,\n  }\n}];"
+      },
+      "id": "aggregate-cost",
+      "name": "Aggregate cost by role",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "={{ $json.exceedsThreshold ? '⚠️' : '💸' }} *Agent team — yesterday*: {{ $json.totalFormatted }} total across {{ $json.totalCalls }} calls.\nTop roles: {{ $json.topFormatted || 'no activity' }}{{ $json.exceedsThreshold ? `\\n🚨 Daily spend exceeded threshold ($${$json.alertThreshold}/day) — investigate.` : '' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-cost",
+      "name": "Slack — cost summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [600, 0],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — agent-team bot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Daily 08:05 UTC": { "main": [[{ "node": "Query Langfuse (last 24h)", "type": "main", "index": 0 }]] },
+    "Query Langfuse (last 24h)": { "main": [[{ "node": "Aggregate cost by role", "type": "main", "index": 0 }]] },
+    "Aggregate cost by role": { "main": [[{ "node": "Slack — cost summary", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "binaryMode": "separate" },
+  "tags": [],
+  "meta": { "templateCredsSetupCompleted": false }
+}

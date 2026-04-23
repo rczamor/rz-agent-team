@@ -1,6 +1,6 @@
-# n8n workflows — Agent Team routing
+# n8n workflows — Agent Team routing + watchdog
 
-Source-controlled n8n workflows for the Agent Team's Linear → Routines/Paperclip routing, plus reliability workflows (reconciler, deferred-fire drainer).
+Source-controlled n8n workflows for the Agent Team's Linear → Routines/Paperclip routing, reliability workflows (reconciler, deferred-fire drainer), and the cost/health watchdog (TRZ-439).
 
 ## Files
 
@@ -9,8 +9,11 @@ Source-controlled n8n workflows for the Agent Team's Linear → Routines/Papercl
 | `linear-router.json` | Main router | Linear webhook (issue status change) | [CAR-362](https://linear.app/riche-life/issue/CAR-362) |
 | `reconciler.json` | Catch missed webhooks | Schedule — every 15 min | [CAR-370](https://linear.app/riche-life/issue/CAR-370) |
 | `deferred-fire-drainer.json` | Retry capped fires | Schedule — daily 00:05 UTC | [CAR-371](https://linear.app/riche-life/issue/CAR-371) |
+| `watchdog-health.json` | Hourly agent health scraper | Schedule — every 1h | [TRZ-439](https://linear.app/riche-life/issue/TRZ-439) |
+| `watchdog-cost.json` | Daily cost summary | Schedule — daily 08:05 UTC | [TRZ-439](https://linear.app/riche-life/issue/TRZ-439) |
+| `watchdog-canary.json` | Weekly strategic-routine canary | Schedule — Mondays 09:00 UTC | [TRZ-439](https://linear.app/riche-life/issue/TRZ-439) |
 
-All 3 are paired with [CAR-354](https://linear.app/riche-life/issue/CAR-354) for deployment.
+Routing workflows (first 3) are paired with [CAR-354](https://linear.app/riche-life/issue/CAR-354) for deployment. Watchdog workflows (last 3) are paired with TRZ-439.
 
 ---
 
@@ -99,6 +102,64 @@ Stop-on-429 is intentional — keeps FIFO order, doesn't burn retries when clear
 
 ---
 
+---
+
+## 4. Watchdog — Hourly Health (`watchdog-health.json`)
+
+Polls Langfuse for the last hour's traces, tallies errors per agent role, alerts if any role has 3+ errors.
+
+```
+Every 1h
+  ↓
+GET /api/public/traces?fromTimestamp=<1h ago>   (Langfuse, HTTP Basic auth with PK/SK)
+  ↓
+Group by metadata.agent_role → count traces where level=ERROR
+  ↓
+If any role has ≥ 3 errors → Slack #agent-team alert with role + error count + sample message
+Silent on happy path
+```
+
+**Why Langfuse rather than docker logs:** every LLM call is already traced with agent_role, app_id, error level, and cost — no SSH / docker exec needed from n8n. Cleaner, fewer moving parts.
+
+---
+
+## 5. Watchdog — Daily Cost Summary (`watchdog-cost.json`)
+
+```
+Daily 08:05 UTC
+  ↓
+GET /api/public/traces?fromTimestamp=<24h ago>   (Langfuse)
+  ↓
+Sum totalCost grouped by agent_role
+  ↓
+Slack #agent-team: "💸 Agent team yesterday: $X total. Top roles: conductor=$a, ai-eng=$b, ..."
+If total > $10/day threshold → escalate with 🚨 prefix
+```
+
+Threshold is `alertThreshold` in the Code node (default `10`). Adjust per your comfort.
+
+---
+
+## 6. Watchdog — Weekly Strategic-Routine Canary (`watchdog-canary.json`)
+
+Smoke-tests the 4 strategic routines end-to-end every Monday. Catches drift in routine setup (expired tokens, Notion permission changes, Langfuse creds, etc.).
+
+```
+Mondays 09:00 UTC
+  ↓
+For each of the 4 routines (architect, analyst, ux, research):
+  1. Linear GraphQL: create a known-good canary ticket with matching type:* label
+  2. Linear GraphQL: flip to "Ready for Claude routines" (fires main router → routine)
+  3. Wait 30 min
+  4. Linear GraphQL: fetch ticket comments
+  5. Check for: "routine fired" marker, "✓ complete" marker, Notion URL
+  6. If any marker missing → Slack #agent-team alert with which step failed
+```
+
+Canary tickets stay in Linear (not archived automatically). Cleanup is a manual step — filter by `[Canary <date>]` in the title.
+
+---
+
 ## Install (see [CAR-354](https://linear.app/riche-life/issue/CAR-354) for full steps)
 
 1. In n8n UI: **Workflows → Import from File** — import all 3 JSON files
@@ -141,7 +202,23 @@ N8N_ROUTER_WEBHOOK_URL=http://localhost:5678/webhook/linear-router
 # "access to env vars denied" and the workflow fails silently into the
 # fire-failed Slack alert with blank placeholders.
 N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+
+# --- Watchdog (TRZ-439) additional env vars ---
+
+# Linear team ID (Riche Zamor team — `TRZ` prefix). Used by weekly canary workflow.
+LINEAR_TEAM_ID=<uuid from Linear Settings → API>
+
+# Linear state ID for "Ready for Claude routines" on the TRZ team.
+LINEAR_STATE_ID_READY_FOR_CLAUDE_ROUTINES=<uuid>
+
+# Linear label IDs for each type:* label (canary needs to attach the right one per routine).
+LINEAR_LABEL_ID_ARCHITECT=<uuid>
+LINEAR_LABEL_ID_ANALYST=<uuid>
+LINEAR_LABEL_ID_UX=<uuid>
+LINEAR_LABEL_ID_RESEARCH=<uuid>
 ```
+
+Langfuse credential (n8n HTTP Basic Auth): create an n8n credential with username = `LANGFUSE_PUBLIC_KEY`, password = `LANGFUSE_SECRET_KEY` (both from `/docker/openclaw-conductor/.env`). Reference ID in `watchdog-health.json` and `watchdog-cost.json` (placeholder `REPLACE-WITH-LANGFUSE-BASIC-AUTH-CRED-ID`).
 
 ## Dedup + back-pressure state
 

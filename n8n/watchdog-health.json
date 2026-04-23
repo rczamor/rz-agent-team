@@ -1,0 +1,120 @@
+{
+  "name": "Agent Team Watchdog — Hourly Health",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 1 }
+          ]
+        }
+      },
+      "id": "trigger-hourly",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://langfuse-web:3000/api/public/traces?fromTimestamp={{ new Date(Date.now() - 60*60*1000).toISOString() }}&toTimestamp={{ new Date().toISOString() }}&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "query-langfuse",
+      "name": "Query Langfuse (last 1h)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 0],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REPLACE-WITH-LANGFUSE-BASIC-AUTH-CRED-ID",
+          "name": "Langfuse public API — PK/SK"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tally error counts per agent (role) from the last hour's Langfuse traces.\n// Each trace has: id, name, metadata {agent_role, app_id}, observations[] (contains level=ERROR entries).\n// An agent is 'unhealthy' if it has >= 3 errors in the hour.\nconst resp = $input.first().json;\nconst status = resp.statusCode || 0;\nif (status !== 200) {\n  return [{ json: { skip: true, reason: `langfuse ${status}`, details: JSON.stringify(resp.body || {}).slice(0, 300) } }];\n}\n\nconst traces = resp.body?.data || [];\nconst byRole = {};\nfor (const t of traces) {\n  const role = t.metadata?.agent_role || t.userId || 'unknown';\n  if (!byRole[role]) byRole[role] = { total: 0, errors: 0, sample: null };\n  byRole[role].total++;\n  // Level-based classification — tolerate different Langfuse shapes.\n  const isError = (t.level === 'ERROR') || (t.observations || []).some(o => o.level === 'ERROR' || o.statusMessage?.includes('error'));\n  if (isError) {\n    byRole[role].errors++;\n    if (!byRole[role].sample) byRole[role].sample = { traceId: t.id, name: t.name, timestamp: t.timestamp, message: (t.observations || []).find(o => o.level === 'ERROR')?.statusMessage || 'unknown' };\n  }\n}\n\nconst unhealthy = Object.entries(byRole)\n  .filter(([, v]) => v.errors >= 3)\n  .map(([role, v]) => ({ role, ...v }));\n\nreturn [{\n  json: {\n    skip: unhealthy.length === 0,\n    reason: unhealthy.length === 0 ? 'happy path' : 'agents_with_3plus_errors',\n    tracesScanned: traces.length,\n    unhealthy,\n  }\n}];"
+      },
+      "id": "classify-health",
+      "name": "Classify health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "not-skipped",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "false" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-unhealthy",
+      "name": "If unhealthy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "=🚨 AGENT HEALTH — {{ $json.unhealthy.length }} agent(s) with 3+ errors in last hour\n{{ $json.unhealthy.map(u => `• *${u.role}*: ${u.errors} errors of ${u.total} calls — last: ${u.sample?.message || 'n/a'} (${u.sample?.timestamp || 'n/a'})`).join('\\n') }}\n\nCheck logs: `./connect.sh \"docker logs openclaw-<role>-openclaw-1 --tail 50\"`",
+        "otherOptions": {}
+      },
+      "id": "slack-alert",
+      "name": "Slack — health alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [800, 0],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "name": "Slack — agent-team bot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Every hour": { "main": [[{ "node": "Query Langfuse (last 1h)", "type": "main", "index": 0 }]] },
+    "Query Langfuse (last 1h)": { "main": [[{ "node": "Classify health", "type": "main", "index": 0 }]] },
+    "Classify health": { "main": [[{ "node": "If unhealthy", "type": "main", "index": 0 }]] },
+    "If unhealthy": { "main": [[{ "node": "Slack — health alert", "type": "main", "index": 0 }], []] }
+  },
+  "settings": { "executionOrder": "v1", "binaryMode": "separate" },
+  "tags": [],
+  "meta": { "templateCredsSetupCompleted": false }
+}
