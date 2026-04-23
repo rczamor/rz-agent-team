@@ -14,7 +14,7 @@ metadata:
       - NOTION_INTEGRATION_TOKEN
       - LINEAR_API_TOKEN
       - GITHUB_DEPLOY_KEY
-      - OLLAMA_CLOUD_KEY
+      - OLLAMA_API_KEY
     binaries_required:
       - bash
       - git

@@ -13,7 +13,7 @@ metadata:
       - SLACK_BOT_TOKEN
       - NOTION_INTEGRATION_TOKEN
       - GITHUB_DEPLOY_KEY
-      - OLLAMA_CLOUD_KEY
+      - OLLAMA_API_KEY
       - VERCEL_TOKEN
       - HOSTINGER_VPS_SSH_KEY
     binaries_required:
