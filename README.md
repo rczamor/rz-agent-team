@@ -167,8 +167,8 @@ Full operating rules: Notion [Operating Rules & Conventions](https://www.notion.
 
 ## Setup prerequisites
 
-1. **Anthropic API key** — Claude Opus 4.7 for Conductor + AI Eng escalation; Claude Code Routines on Max plan for the 4 strategic routines.
-2. **Ollama Cloud API key** — workhorse inference for the 8 non-AI-Eng execution agents (Qwen 3.5) and AI Engineer (Kimi K2.5).
+1. **Anthropic API key** — not required for the VPS. Claude Code Routines on Max plan handle the 4 strategic routines (Opus 4.7); Conductor escalates to them via Linear tickets and does not call Anthropic directly.
+2. **Ollama Cloud API key** — Kimi K2.6 inference for all 10 execution agents including Conductor.
 3. **Slack workspace** — bot tokens for the 10 core execution agents + `@growth`.
 4. **Linear API token** — workspace access; Conductor + PM-lite need write permission.
 5. **GitHub access** — agents work on each app's repo; all 8 already exist at `github.com/rczamor/*`.

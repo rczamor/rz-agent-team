@@ -5,7 +5,7 @@ researched: 2026-04-16
 
 # AI Eng Corpus
 
-Role-specific knowledge sources for the AI Eng agent. AI Eng owns Langfuse prompts, consolidation/generation pipelines, search tuning, and MCP tools. Primary model: Claude Opus 4.7. Observability is mandatory — every LLM call to Langfuse with prompt/response/model/tokens/cost, extended thinking enabled.
+Role-specific knowledge sources for the AI Eng agent. AI Eng owns Langfuse prompts, consolidation/generation pipelines, search tuning, and MCP tools. Primary model: Kimi K2.6 via Ollama Cloud. Observability is mandatory — every LLM call to Langfuse with prompt/response/model/tokens/cost, extended thinking enabled.
 
 ## Index
 
