@@ -13,7 +13,7 @@ metadata:
       - SLACK_BOT_TOKEN
       - NOTION_INTEGRATION_TOKEN
       - LINEAR_API_TOKEN
-      - OLLAMA_CLOUD_KEY
+      - OLLAMA_API_KEY
     binaries_required:
       - bash
       - curl
