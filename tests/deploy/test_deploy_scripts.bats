@@ -175,6 +175,44 @@ EOF
   rm -rf "$tmp"
 }
 
+# Regression for TRZ-501: associative-array refactor must keep the pm -> pm-lite
+# mapping working AND the script must boot cleanly under bash 3.2 (stock macOS).
+@test "deploy-identities.sh --role pm resolves to identities/pm-lite.md and boots on bash 3.2" {
+  local tmp
+  tmp="$(mktemp -d)"
+  touch "${tmp}/TEAM.md" "${tmp}/USER.md"
+  mkdir -p "${tmp}/identities" "${tmp}/skills/shared"
+  echo "# PM identity (lite)" > "${tmp}/identities/pm-lite.md"
+  echo "shared" > "${tmp}/skills/shared/SKILL.md"
+
+  mkdir -p "${tmp}/outer"
+  cat > "${tmp}/outer/.env.local" <<EOF
+HOSTINGER_HOST=mock.example.com
+HOSTINGER_USER=mockuser
+HOSTINGER_SSH_KEY=/tmp/mock-key
+HOSTINGER_PORT=22
+EOF
+  cat > "${tmp}/outer/connect.sh" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *"test -d"*) exit 0 ;;
+  *) echo "[mock connect.sh] $*" ;;
+esac
+EOF
+  chmod 755 "${tmp}/outer/connect.sh"
+
+  # Force /bin/bash (3.2.57 on stock macOS) so we exercise the portability fix
+  # even on dev boxes that have homebrew bash on PATH.
+  run env REPO_ROOT="$tmp" CONNECT_SH="${tmp}/outer/connect.sh" \
+    /bin/bash "${SCRIPTS_DIR}/deploy-identities.sh" --dry-run --no-restart --role pm
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"role=pm"* ]]
+  [[ "$output" == *"step=identity-md status=ok"* ]]
+  [[ "$output" != *"unbound variable"* ]]
+  [[ "$output" != *"declare: -A"* ]]
+  rm -rf "$tmp"
+}
+
 # ------------------------------------------------------------------------------
 # bootstrap-openclaw-instance.sh generates a parseable compose file
 # ------------------------------------------------------------------------------
