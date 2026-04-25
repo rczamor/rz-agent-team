@@ -19,7 +19,7 @@ that hosts the 11-role OpenClaw fleet.
 ## Dependencies
 
 ### Local (dev box)
-- `rsync`, `ssh`, `git`, `bash` >= 4
+- `rsync`, `ssh`, `git`, `bash` (3.2+ — works with stock macOS bash)
 - `connect.sh` present two directories up from `scripts/` (i.e.
   `../../connect.sh` relative to this file). It reads `.env.local` for the
   VPS host/user/key. Override via `CONNECT_SH=/path/to/connect.sh` env var.

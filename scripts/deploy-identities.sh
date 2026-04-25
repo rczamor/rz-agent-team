@@ -53,23 +53,6 @@ ROLES=(
   growth
 )
 
-# Map OpenClaw instance slug (VPS dir /docker/openclaw-<slug>/) to the identity
-# file stem (identities/<stem>.md). Needed because a few instance names are
-# abbreviated relative to the identity filenames.
-declare -A IDENTITY_FILE=(
-  [conductor]=conductor
-  [pm]=pm-lite
-  [designer]=designer
-  [backend-eng]=backend-eng
-  [data-eng]=data-eng
-  [ai-eng]=ai-eng
-  [ui-eng]=ui-eng
-  [qa-eng]=qa-eng
-  [devops-eng]=devops-eng
-  [tech-writer]=tech-writer
-  [growth]=growth
-)
-
 # Note on retired roles: "researcher" was split into 4 Claude Code Routines
 # (rz-architect, rz-analyst, rz-ux-researcher, rz-ai-researcher) on 2026-04-17
 # and the openclaw-researcher instance was retired in CAR-356. Do not re-add.
@@ -123,6 +106,16 @@ log() {
 die() {
   echo "error: $*" >&2
   exit 1
+}
+
+# Resolve identity-file stem for a role. All roles map 1:1 to identities/<role>.md
+# except `pm`, which uses identities/pm-lite.md. Written as a case statement
+# rather than `declare -A` so the script runs on stock macOS bash 3.2.
+identity_file_for() {
+  case "$1" in
+    pm) echo "pm-lite" ;;
+    *)  echo "$1" ;;
+  esac
 }
 
 # Runs a command on the remote VPS via connect.sh. Returns the command's exit code.
@@ -217,7 +210,7 @@ for role in "${ROLES[@]}"; do
   log "$role" "instance-check" "ok"
 
   # Resolve identity file stem (handles pm -> pm-lite.md).
-  identity_file="${IDENTITY_FILE[$role]:-$role}"
+  identity_file="$(identity_file_for "$role")"
 
   # --- TEAM.md --------------------------------------------------------------
   if remote_rsync "${REPO_ROOT}/TEAM.md" "${workspace}/TEAM.md"; then
