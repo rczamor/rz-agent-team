@@ -1,6 +1,6 @@
 {
   "name": "rz-architect",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Technical Architect strategic routine for Riché Zamor's agent team. Fires via Claude Code Routines when a Linear ticket labeled type:architect moves to Ready for Claude routines. Produces ADRs, integration designs, architecture reviews, and tech stack evaluations in Notion.",
   "author": {
     "name": "Riché Zamor"

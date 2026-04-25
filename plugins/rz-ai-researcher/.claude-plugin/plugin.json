@@ -1,6 +1,6 @@
 {
   "name": "rz-ai-researcher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI Researcher strategic routine for Riché Zamor's agent team. Fires via Claude Code Routines when a Linear ticket labeled type:research moves to Ready for Claude routines. Produces method evaluations, eval specs, ablation study designs, and literature reviews. Feeds recommendations to the AI Engineer execution agent.",
   "author": {
     "name": "Riché Zamor"

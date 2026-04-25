@@ -1,6 +1,6 @@
 {
   "name": "rz-analyst",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Analyst strategic routine for Riché Zamor's agent team. Fires via Claude Code Routines when a Linear ticket labeled type:analyst moves to Ready for Claude routines. Produces competitive matrices, market analysis briefs, pricing/packaging studies, and opportunity briefs in Notion.",
   "author": {
     "name": "Riché Zamor"
