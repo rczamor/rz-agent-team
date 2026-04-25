@@ -32,6 +32,10 @@ tests/
 │   ├── test_skills.bats            SKILL.md coverage, frontmatter, 7-section template
 │   ├── test_compose.bats           docker-compose parse + 11 services + port block 47810-47820
 │   └── test_env_example.bats       every ${VAR} in compose is declared in .env.example
+├── deploy/
+│   └── test_deploy_scripts.bats    scripts/ deployment automation: file presence, shellcheck,
+│                                   --help / arg validation, --dry-run mocked-role exercise,
+│                                   bash 3.2 portability (TRZ-501), bootstrap-openclaw-instance.sh
 └── python/
     ├── conftest.py                 pytest fixtures (repo_root, corpus_dir, etc.)
     └── test_corpus_parsing.py      cross-role seed dedup + per-tilt keyword checks

@@ -42,7 +42,8 @@ run_bats () {
                tests/bats/test_identities.bats \
                tests/bats/test_skills.bats \
                tests/bats/test_compose.bats \
-               tests/bats/test_env_example.bats)
+               tests/bats/test_env_example.bats \
+               tests/deploy/test_deploy_scripts.bats)
 
   if [ -n "$BATS_BIN" ]; then
     "$BATS_BIN" "${files[@]}" || BATS_FAIL=$?
@@ -65,6 +66,7 @@ run_bats () {
         echo "#!/usr/bin/env bash"
         echo "set -u"
         echo "export BATS_TEST_DIRNAME='$fdir'"
+        echo "export BATS_TEST_FILENAME='$fdir/$(basename "$f")'"
         echo "load () { local p=\"\$1\"; case \"\$p\" in /*) source \"\$p\";; *) source \"\$BATS_TEST_DIRNAME/\$p\";; esac; }"
         # In the shim every test runs in a subshell; `skip` exits the subshell
         # with success so the remainder of the body is not executed — matching
