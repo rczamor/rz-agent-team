@@ -68,3 +68,10 @@ SERVICE_SUFFIXES=(conductor pm growth designer backend-eng data-eng ai-eng ui-en
 @test "agent-memory service is declared" {
   grep -qE '^[[:space:]]{2}agent-memory:[[:space:]]*$' "$COMPOSE"
 }
+
+@test "openclaw-growth sources GB_API_KEY from env (GrowthBook credential)" {
+  # The growth agent's primary tool (the growthbook skill) authenticates via the
+  # GB_API_KEY env var, which identities/growth.md states is pre-wired in the
+  # container from .env. Guard that the openclaw-growth service actually sets it.
+  grep -qE 'GB_API_KEY: \$\{GB_API_KEY\}' "$COMPOSE"
+}
