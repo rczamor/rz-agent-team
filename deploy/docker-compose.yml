@@ -167,6 +167,8 @@ services:
       AGENT_ROLE: growth
       AGENT_MODEL_TIER: workhorse
       AGENT_SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN_GROWTH}
+      # GrowthBook PAT for the `growthbook` skill (HTTP Basic). growth-only.
+      GB_API_KEY: ${GB_API_KEY}
 
   # ---- Designer ------------------------------------------------------------
   # Product/UX design: flows, wireframes, critique, handoffs.
