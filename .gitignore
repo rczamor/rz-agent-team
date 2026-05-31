@@ -5,6 +5,10 @@ hostinger_vps*
 .DS_Store
 .secrets
 
+# Python artifacts
+__pycache__/
+*.pyc
+
 # Local workspace state — not for the repo
 .claude/
 .playwright-mcp/

@@ -164,7 +164,7 @@
       "position": [1800, 0],
       "credentials": {
         "slackApi": {
-          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "id": "1Iv0Fuumdlb06Xq2",
           "name": "Slack — agent-team bot"
         }
       },
