@@ -6,7 +6,7 @@ SQL migrations for the dedicated `agent-memory-postgres` container on the Hostin
 
 Container `agent-memory-postgres` runs from `/docker/agent-memory/docker-compose.yml` on the VPS:
 
-- **Image:** `postgres:17`
+- **Image:** `pgvector/pgvector:pg17` (Postgres 17 with pgvector baked in; swapped from stock `postgres:17` in TRZ-443 / migration 0004)
 - **Host bind:** `127.0.0.1:54330` → container `:5432` (loopback only — not publicly exposed)
 - **Database:** `agent_memory`
 - **User:** `agent_memory` (owner — full DDL rights)

@@ -1,0 +1,644 @@
+{
+  "name": "Linear Router \u2014 Reconciler",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "dfcae17b-faf8-4d51-85e3-779af80f1bf5",
+      "name": "Every 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -7888,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `query StuckIssues($tenMinAgo: DateTimeOrDuration!) {\n    issues(\n      filter: {\n        state: { name: { in: [\\\"Ready for Claude routines\\\", \\\"Ready for agent build\\\"] } }\n        updatedAt: { lt: $tenMinAgo }\n      }\n      first: 50\n    ) {\n      nodes {\n        id\n        identifier\n        title\n        description\n        url\n        updatedAt\n        state { name }\n        labels { nodes { name } }\n      }\n    }\n  }`,\n  variables: {\n    tenMinAgo: new Date(Date.now() - 10*60*1000).toISOString()\n  }\n}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d17ecde5-d644-4af1-b27f-c96458bc5f9f",
+      "name": "Query stuck Linear tickets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -7664,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten the GraphQL response into one item per ticket.\n// Always emit `empty` as an explicit boolean so downstream If node can use\n// a simple `equals false` comparison (n8n's If v2 boolean operator set doesn't\n// include `notEqual`; strict type validation rejects `undefined` against a\n// boolean operand, so leaving the field unset breaks the filter).\nconst body = $input.first().json;\nconst nodes = body?.data?.issues?.nodes || [];\nif (nodes.length === 0) {\n  return [{ json: { empty: true, count: 0 } }];\n}\nreturn nodes.map(n => ({\n  json: {\n    empty: false,\n    issueId: n.id,\n    issueIdentifier: n.identifier,\n    issueTitle: n.title,\n    issueDescription: n.description || '',\n    issueUrl: n.url,\n    updatedAt: n.updatedAt,\n    stateName: n.state.name,\n    labels: (n.labels?.nodes || []).map(l => l.name),\n  }\n}));"
+      },
+      "id": "3e5107c3-9cfc-41e0-a0cf-bd6c4073e64d",
+      "name": "Flatten tickets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7440,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "not-empty",
+              "leftValue": "={{ $json.empty }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0857db65-9082-4ae0-8d9a-8edd75109d05",
+      "name": "If any stuck tickets",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -7216,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-routine",
+                    "leftValue": "={{ $json.stateName }}",
+                    "rightValue": "Ready for Claude routines",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "routine"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-paperclip",
+                    "leftValue": "={{ $json.stateName }}",
+                    "rightValue": "Ready for agent build",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "paperclip"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0a36b6bd-a9e0-4c54-8f08-ec516847b0f7",
+      "name": "Switch by status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -7008,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `query IssueComments($id: String!) { issue(id: $id) { comments(first: 50) { nodes { body } } } }`,\n  variables: { id: $json.issueId }\n}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "1551498a-ae61-4082-933c-be81f0408a9b",
+      "name": "Check routine fired comments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -6784,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Look for the main router's \"routine fired\" marker in comments.\nconst ticket = $('Switch by status').item.json;\nconst body = $input.first().json;\nconst comments = body?.data?.issue?.comments?.nodes || [];\nconst marker = /\u2699\\s*(Technical Architect|Analyst|User Researcher|AI Researcher)\\s+routine fired/i;\nconst fired = comments.some(c => marker.test(c.body || ''));\nreturn [{\n  json: {\n    ...ticket,\n    evidence: fired ? 'comment-found' : 'none',\n    missed: !fired,\n  }\n}];"
+      },
+      "id": "771e7d14-016b-4bcd-a1c5-f20e3e22bf47",
+      "name": "Routine evidence check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6560,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// List Paperclip labels via n8n's this.helpers.httpRequest instead of the\n// HTTP Request node. Reason: n8n 2.13.4's HTTP Request v4.2 auto-splits a\n// JSON-array response into N items. When Paperclip returns `[]` (no labels\n// yet), N=0 and every downstream node is skipped \u2014 `Resolve linear label`\n// never runs, `Create linear label` never fires, and the first-seen ticket\n// silently drops. A Code node always emits whatever it returns, independent\n// of response shape.\nconst input = $input.first() ? $input.first().json : {};\nconst url = `${$env.PAPERCLIP_API_URL}/api/companies/${$env.PAPERCLIP_COMPANY_ID}/labels`;\nlet labels = [];\nlet statusCode = 0;\nlet error = null;\ntry {\n  const body = await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    headers: { 'Authorization': `Bearer ${$env.PAPERCLIP_API_KEY}` },\n    json: true,\n  });\n  statusCode = 200;\n  labels = Array.isArray(body) ? body : (body?.labels || body?.data || []);\n} catch (err) {\n  error = String(err && err.message ? err.message : err);\n  statusCode = (err && err.statusCode) || 0;\n}\nreturn [{\n  json: {\n    ...input,\n    labels,\n    labelsStatusCode: statusCode,\n    labelsError: error,\n  }\n}];"
+      },
+      "id": "1c7829ce-3dfe-470a-8a0a-f682aede3c95",
+      "name": "List Paperclip labels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6784,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Upstream List Paperclip labels is a Code node that always emits one item\n// shaped { labels, labelsStatusCode, labelsError, ...ticket }.\nconst item = $input.first().json;\nconst labels = Array.isArray(item.labels) ? item.labels : [];\nconst target = `linear:${item.issueIdentifier}`;\nconst match = labels.find(l => l && l.name === target);\nif (match && match.id) {\n  return [{ json: { ...item, linearLabelId: match.id, labelExists: true } }];\n}\nreturn [{ json: { ...item, linearLabelId: null, labelExists: false, evidence: 'none', missed: true } }];"
+      },
+      "id": "180c6943-e6d7-4fe7-b653-9ac211de7c63",
+      "name": "Resolve linear label",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6560,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "label-exists-check",
+              "leftValue": "={{ $json.labelExists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "949e658b-a6ec-4375-a504-b3d24d7d934f",
+      "name": "If label exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -6336,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Same reason as List Paperclip labels \u2014 use this.helpers.httpRequest so the\n// node always emits exactly one downstream item regardless of response shape.\nconst input = $input.first() ? $input.first().json : {};\nconst url = `${$env.PAPERCLIP_API_URL}/api/companies/${$env.PAPERCLIP_COMPANY_ID}/issues`;\nlet issues = [];\nlet statusCode = 0;\nlet error = null;\ntry {\n  const body = await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    headers: { 'Authorization': `Bearer ${$env.PAPERCLIP_API_KEY}` },\n    qs: { labelId: input.linearLabelId || '' },\n    json: true,\n  });\n  statusCode = 200;\n  issues = Array.isArray(body) ? body : (body?.issues || body?.tasks || body?.data || []);\n} catch (err) {\n  error = String(err && err.message ? err.message : err);\n  statusCode = (err && err.statusCode) || 0;\n}\nreturn [{\n  json: {\n    ...input,\n    issues,\n    issuesStatusCode: statusCode,\n    issuesError: error,\n  }\n}];"
+      },
+      "id": "37ca0aaf-513e-4b50-802e-df51b9b95604",
+      "name": "Check Paperclip task exists",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6128,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Upstream Check Paperclip task exists is a Code node that always emits one\n// item shaped { issues, ...ticket }.\nconst item = $input.first().json;\nconst issues = Array.isArray(item.issues) ? item.issues : [];\nconst found = issues.length > 0;\nreturn [{ json: { ...item, evidence: found ? 'issue-found' : 'none', missed: !found } }];"
+      },
+      "id": "e2168f45-dd0e-4346-a6ee-ea0680724a3b",
+      "name": "Paperclip evidence check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5904,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "missed-check",
+              "leftValue": "={{ $json.missed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e69a4d6f-4262-438b-97b2-81a9240617c9",
+      "name": "If missed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -5680,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_ROUTER_WEBHOOK_URL || 'http://localhost:5678/webhook/linear-router' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Reconciler",
+              "value": "true"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  action: 'update',\n  data: {\n    id: $json.issueId,\n    identifier: $json.issueIdentifier,\n    title: $json.issueTitle,\n    description: $json.issueDescription,\n    url: $json.issueUrl,\n    updatedAt: $json.updatedAt,\n    state: { name: $json.stateName },\n    labels: $json.labels.map(name => ({ name }))\n  }\n}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "47259d6c-5c69-4cc1-b5e2-32c5b9f2c62c",
+      "name": "Re-fire via main router",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -5456,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all refired tickets for the summary Slack alert.\nconst items = $input.all();\nconst refired = items.map(i => ({\n  identifier: i.json.issueIdentifier,\n  title: i.json.issueTitle,\n  state: i.json.stateName,\n  url: i.json.issueUrl,\n}));\nreturn [{ json: { count: refired.length, refired } }];"
+      },
+      "id": "a37890e3-13d4-41b8-be3e-8ba22ccce89f",
+      "name": "Collect refired",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5248,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "count-gt-0",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0fe0adf0-460f-40ae-83ef-27239888f5ec",
+      "name": "If any refired",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -5024,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "=\ud83d\udd01 Reconciler recovered {{ $json.count }} missed fire{{ $json.count === 1 ? '' : 's' }} this cycle:\n{{ $json.refired.map(r => `\u2022 ${r.identifier} \u2014 ${r.title} (${r.state})`).join('\\n') }}",
+        "otherOptions": {}
+      },
+      "id": "ef5b7b7c-5836-4b7c-bedf-ece39645e907",
+      "name": "Slack \u2014 reconciled",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        -4800,
+        944
+      ],
+      "webhookId": "035d9099-4c39-43e5-b670-cefa5d0de773",
+      "credentials": {
+        "slackApi": {
+          "id": "1Iv0Fuumdlb06Xq2",
+          "name": "Slack \u2014 agent-team bot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Every 15 min": {
+      "main": [
+        [
+          {
+            "node": "Query stuck Linear tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query stuck Linear tickets": {
+      "main": [
+        [
+          {
+            "node": "Flatten tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten tickets": {
+      "main": [
+        [
+          {
+            "node": "If any stuck tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If any stuck tickets": {
+      "main": [
+        [
+          {
+            "node": "Switch by status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch by status": {
+      "main": [
+        [
+          {
+            "node": "Check routine fired comments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List Paperclip labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check routine fired comments": {
+      "main": [
+        [
+          {
+            "node": "Routine evidence check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Paperclip labels": {
+      "main": [
+        [
+          {
+            "node": "Resolve linear label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve linear label": {
+      "main": [
+        [
+          {
+            "node": "If label exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If label exists": {
+      "main": [
+        [
+          {
+            "node": "Check Paperclip task exists",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If missed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Paperclip task exists": {
+      "main": [
+        [
+          {
+            "node": "Paperclip evidence check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Routine evidence check": {
+      "main": [
+        [
+          {
+            "node": "If missed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Paperclip evidence check": {
+      "main": [
+        [
+          {
+            "node": "If missed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If missed": {
+      "main": [
+        [
+          {
+            "node": "Re-fire via main router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-fire via main router": {
+      "main": [
+        [
+          {
+            "node": "Collect refired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect refired": {
+      "main": [
+        [
+          {
+            "node": "If any refired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If any refired": {
+      "main": [
+        [
+          {
+            "node": "Slack \u2014 reconciled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

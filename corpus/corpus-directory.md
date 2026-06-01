@@ -1,6 +1,8 @@
 # Agent Team Knowledge Corpus — Research Seeds
 
-Curated list of thought leaders, practitioners, organizations, publications, and communities for each of the 11 OpenClaw agent roles. Intended as a starting input for Claude Cowork to conduct deeper research and assemble the knowledge corpus each agent will draw from.
+Curated list of thought leaders, practitioners, organizations, publications, and communities for each agent role. Covers the 10 core OpenClaw execution agents + the 4 Claude Code Routines strategic roles. Intended as input for Claude Cowork to conduct deeper research and assemble the knowledge corpus each agent will draw from.
+
+The original 11-role structure (1–11 below) was written April 16, 2026. After the April 17 refactor, the generic "Researcher" role was retired and its work split into 4 strategic routines (sections 12–15). The `@growth` exception agent is covered under its own Notion spec rather than a dedicated corpus.
 
 Format per role: 5–7 seeds, mixing classic authorities, modern practitioners, and relevant orgs/publications/communities. Each entry includes who/what, why they matter, signature work, and where to find them.
 
@@ -428,6 +430,168 @@ Needs docs-as-code fluency, API documentation standards, and modern information-
 **The Good Docs Project + GitLab Handbook**
 - Why: The Good Docs Project offers open-source docs templates directly usable by this agent. GitLab's public handbook is the largest living example of documentation-as-source-of-truth done well.
 - Where: thegooddocsproject.dev, about.gitlab.com/handbook.
+
+---
+
+## 12. Technical Architect (rz-architect) — Strategic routine
+
+Claude Code Routine that produces ADRs, integration designs, architecture reviews, and tech-stack evaluations across the app portfolio. Stateless between runs; writes durable artifacts to the ADR Log Notion hub. Needs deep grounding in architecture decision practice, integration patterns, evolutionary architecture, and distributed-systems tradeoffs.
+
+**Martin Fowler / ThoughtWorks**
+- Why: Author of the canonical architecture-decision vocabulary (ADRs as a practice, evolutionary architecture, strangler fig). ThoughtWorks Radar is the paired signal for what to adopt/hold.
+- Signature work: *Patterns of Enterprise Application Architecture*, *Refactoring*, "Who Needs an Architect?" essay, ThoughtWorks Technology Radar.
+- Where: martinfowler.com, thoughtworks.com/radar.
+
+**Gregor Hohpe**
+- Why: *Enterprise Integration Patterns* is the vocabulary every integration design uses; *The Software Architect Elevator* defines the strategic architect's job of riding between exec floors and the engine room — the exact role this routine plays.
+- Signature work: *Enterprise Integration Patterns*, *The Software Architect Elevator*, *Cloud Strategy*, *Platform Strategy*.
+- Where: architectelevator.com, enterpriseintegrationpatterns.com.
+
+**Michael Nygard**
+- Why: Wrote *Release It!* (the production-architecture bible for timeouts, circuit breakers, bulkheads) and in 2011 introduced "Documenting Architecture Decisions" — the ADR format now used across the industry and by this routine.
+- Signature work: *Release It!*, "Documenting Architecture Decisions" (2011 blog post), *Wide Awake Developers* blog.
+- Where: michaelnygard.com, cognitect.com blog archive.
+
+**Neal Ford + Mark Richards**
+- Why: *Fundamentals of Software Architecture* + *Software Architecture: The Hard Parts* + *Building Evolutionary Architectures* together form the modern architect's vocabulary on architecture characteristics, fitness functions, and how to decompose the hard parts (data, transactions, workflow).
+- Signature work: *Fundamentals of Software Architecture* (Ford + Richards, 2020), *Software Architecture: The Hard Parts* (2021), *Building Evolutionary Architectures* (Ford + Parsons + Kua, 2017).
+- Where: O'Reilly catalog, nealford.com.
+
+**Eric Evans + Vaughn Vernon**
+- Why: Domain-Driven Design. Bounded contexts, context maps, ubiquitous language — the strategic design tools the Architect routine uses to scope integrations and argue against premature coupling.
+- Signature work: *Domain-Driven Design* (Evans, 2003), *Implementing Domain-Driven Design* (Vernon, 2013).
+- Where: domainlanguage.com, vaughnvernon.com.
+
+**Sam Newman**
+- Why: *Building Microservices* (2nd ed, 2021) + *Monolith to Microservices* are the pragmatic references for service decomposition and migration strategy — when to split, when to leave monoliths alone.
+- Signature work: *Building Microservices*, *Monolith to Microservices*, samnewman.io blog and talks.
+- Where: samnewman.io.
+
+**Werner Vogels + AWS Well-Architected**
+- Why: Vogels's "Eventually Consistent" essay and the AWS Well-Architected Framework (6 pillars: operational excellence, security, reliability, performance, cost, sustainability) are the cloud-scale architecture references every architect cites.
+- Signature work: "Eventually Consistent" (2008), "10 Lessons from 10 Years of AWS" (re:Invent 2016), AWS Well-Architected Framework documentation.
+- Where: allthingsdistributed.com, aws.amazon.com/architecture/well-architected.
+
+---
+
+## 13. Analyst (rz-analyst) — Strategic routine
+
+Claude Code Routine that produces competitive matrices, market analysis briefs, pricing studies, and sized opportunity briefs. Needs rigor on sourcing, competitive strategy frameworks, jobs-to-be-done, and tech-industry-specific analysis.
+
+**Michael Porter**
+- Why: Five Forces, generic strategies (cost leadership / differentiation / focus), Value Chain, and "What is Strategy?" remain the most-taught frameworks in competitive strategy. Every matrix and positioning analysis traces back to Porter's vocabulary.
+- Signature work: *Competitive Strategy* (1980), *Competitive Advantage* (1985), "What is Strategy?" (HBR, 1996), "The Five Competitive Forces That Shape Strategy" (HBR, 2008).
+- Where: isc.hbs.edu (Institute for Strategy and Competitiveness), Harvard Business Review archive.
+
+**Clay Christensen**
+- Why: Disruptive innovation theory + jobs-to-be-done. Frame for how incumbents get disrupted from below and how to analyze buyer motivation beyond demographics. Essential mental model for startup-vs-incumbent competitive analysis.
+- Signature work: *The Innovator's Dilemma* (1997), *Competing Against Luck* (2016, JTBD), "The Prime Movers of JTBD" essays.
+- Where: claytonchristensen.com, Christensen Institute.
+
+**Rita McGrath**
+- Why: *The End of Competitive Advantage* — competitive advantages are transient, so you need continuous reconfiguration rather than defending a moat. Strategic inflection points (jointly with Andy Grove's original).
+- Signature work: *The End of Competitive Advantage* (2013), *Seeing Around Corners* (2019), Thought Sparks blog.
+- Where: ritamcgrath.com, Columbia Business School faculty page.
+
+**Ben Thompson (Stratechery)**
+- Why: The most widely-read tech-industry strategy writer. Aggregation theory, the tech-specific value chain, and weekly deep dives on competitive dynamics in platforms, AI, and SaaS. Directly relevant to Riché's tech portfolio analysis.
+- Signature work: Stratechery daily updates, *Aggregation Theory* (concept), Stratechery Plus podcast, *Dithering*.
+- Where: stratechery.com.
+
+**a16z (Andreessen Horowitz) + Sequoia**
+- Why: Tech-market-specific analyst content. a16z's "state of" reports (AI, consumer, fintech) and Sequoia's memos define the venture-side vocabulary for sizing, defensibility, and market structure in tech.
+- Signature work: a16z.com content library, Sequoia's Data-Informed, state-of-AI-enterprise reports.
+- Where: a16z.com, sequoiacap.com/perspectives.
+
+**Gartner + Forrester**
+- Why: The two incumbent analyst firms. Magic Quadrant and Wave reports set the vocabulary Riché's buyers use to evaluate tools. Essential reference for Fortune-500-focused opportunity briefs.
+- Signature work: Gartner Magic Quadrants, Hype Cycles; Forrester Wave reports, Total Economic Impact studies.
+- Where: gartner.com, forrester.com.
+
+**Harvard Business Review + MIT Sloan Management Review**
+- Why: The two long-running publications of strategy research. HBR for practitioner-grade case studies, MIT SMR for academic-rigor-but-accessible treatments. Primary citation source for methodology on sizing, pricing, and strategic framework selection.
+- Where: hbr.org, sloanreview.mit.edu.
+
+---
+
+## 14. User Researcher (rz-ux-researcher) — Strategic routine
+
+Claude Code Routine that produces interview synthesis, personas, journey maps, and usability audits. Inherits some seeds from the retired generic Researcher corpus (section 3) and adds three UX-specific voices on interview craft, persona design, and listening methodology.
+
+**Teresa Torres** *(shared with researcher)*
+- Why: Continuous discovery and opportunity-solution trees — the bridge between interview synthesis (this routine's output) and product decisions (Riché's call).
+- Signature work: *Continuous Discovery Habits* (2021), Product Talk blog.
+- Where: producttalk.org.
+
+**Erika Hall** *(shared with researcher)*
+- Why: *Just Enough Research* — most practical UX research methods book for small teams. Sharp on interview design and bias.
+- Signature work: *Just Enough Research*, *Conversational Design*.
+- Where: mulecollective.com.
+
+**Christian Rohrer / NN/g** *(shared with researcher)*
+- Why: NN/g's method-selection framework and the 10 usability heuristics — the citable foundation for usability audits.
+- Signature work: "When to Use Which User-Experience Research Methods" (Rohrer), Nielsen's 10 Usability Heuristics.
+- Where: nngroup.com.
+
+**Steve Portigal**
+- Why: *Interviewing Users* is the canonical reference on interview craft — how to elicit stories, handle silence, escape your own biases. The rigor for the synthesis this routine produces.
+- Signature work: *Interviewing Users* (2nd ed, 2023), *Doorbells, Danger, and Dead Batteries* (user research war stories).
+- Where: portigal.com.
+
+**Kim Goodwin**
+- Why: *Designing for the Digital Age* — the modern reference on goal-directed design and persona construction (from Cooper's lineage, but more rigorous than the cartoonish personas most teams ship). The method the routine uses for its persona skill.
+- Signature work: *Designing for the Digital Age* (2009), Rosenfeld Media workshops.
+- Where: kimgoodwin.com.
+
+**Indi Young**
+- Why: Pioneer of mental models and "listening deeply" research — surfacing the thinking styles behind user behavior rather than surveying stated preferences. Complements Torres on the synthesis side.
+- Signature work: *Mental Models* (2008), *Practical Empathy* (2015), *Time to Listen* (2022).
+- Where: indiyoung.com.
+
+**Research Ops Community** *(shared with researcher)*
+- Why: The Eight Pillars of ReOps + repository patterns for how this routine's artifacts are stored and retrieved by downstream agents.
+- Where: researchops.community.
+
+---
+
+## 15. AI Researcher (rz-ai-researcher) — Strategic routine
+
+Claude Code Routine that produces method evaluations, eval specs, ablation study designs, and literature reviews — primarily for SIA but applicable to any app using AI. Feeds recommendations to the AI Engineer execution agent. Inherits several seeds from the AI Engineer corpus (section 7) and adds academic-research-grade voices.
+
+**Anthropic (Applied AI + research)** *(shared with ai-eng)*
+- Why: Direct source for Claude capabilities, tool use, MCP, and agent patterns. Primary reference since the routines run on Claude.
+- Signature work: Anthropic research papers (Sleeper Agents, Constitutional AI, sparse autoencoders), Applied AI blog, MCP spec.
+- Where: anthropic.com/research, docs.anthropic.com, anthropic.com/engineering.
+
+**Hamel Husain + Shreya Shankar** *(shared with ai-eng and qa-eng)*
+- Why: The modern authority on LLM evals — rubric design, LLM-as-judge calibration, error analysis. The bottleneck discipline for any AI product.
+- Signature work: "Your AI product needs evals" (Hamel), Parlance Labs course, Shankar's academic eval papers (operationalizing ML).
+- Where: hamel.dev, parlance-labs.com, sh-reya.com.
+
+**Chip Huyen** *(shared with ai-eng)*
+- Why: *AI Engineering* (2024) is the most comprehensive practitioner treatment of retrieval, evals, fine-tuning, and agents. Methodology-heavy, which is what this routine produces.
+- Signature work: *AI Engineering* (O'Reilly, 2024), *Designing Machine Learning Systems*.
+- Where: huyenchip.com.
+
+**Lilian Weng** *(shared with ai-eng)*
+- Why: The most technically rigorous LLM-method explainers online — agent loops, hallucination taxonomies, prompt patterns, RLHF mechanics. Essential reference for literature reviews.
+- Signature work: lilianweng.github.io essays ("LLM-Powered Autonomous Agents," "Hallucination in LLMs," "Prompt Engineering").
+- Where: lilianweng.github.io.
+
+**Percy Liang + Stanford CRFM**
+- Why: CRFM (Center for Research on Foundation Models) produces HELM (Holistic Evaluation of Language Models) — the academic reference for rigorous LLM benchmarks. Methodology for when the routine needs to design novel evals.
+- Signature work: HELM benchmark suite, "On the Opportunities and Risks of Foundation Models" (2021), DSP → DSPy lineage.
+- Where: crfm.stanford.edu, helm.ai, percy liang's Stanford page.
+
+**Sebastian Raschka**
+- Why: *Build a Large Language Model (From Scratch)* (2024) — the deepest practitioner reference for understanding LLM internals, which the routine needs when evaluating proposed architectural changes or fine-tuning strategies.
+- Signature work: *Build a Large Language Model (From Scratch)*, *Machine Learning Q and AI*, Ahead of AI newsletter.
+- Where: sebastianraschka.com, magazine.sebastianraschka.com.
+
+**Omar Khattab + DSPy team**
+- Why: DSPy (Declarative Self-improving Python) + ColBERT retrieval research — the modern framework for programmatic prompt optimization and the research-grade vocabulary for retrieval systems. Directly applicable to SIA's consolidation and retrieval pipelines.
+- Signature work: DSPy framework (Stanford), ColBERT papers, "Compound AI Systems" essays.
+- Where: dspy.ai, omarkhattab.com, bair.berkeley.edu/blog/2024/02/18/compound-ai-systems.
 
 ---
 

@@ -1,0 +1,40 @@
+{
+  "skill": "rz-analyst-pricing-study",
+  "description": "Routine should produce pricing/packaging analysis with benchmark table (3+ comparators), value metric recommendation, tier structure, risks, and confidence label.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-007",
+    "title": "Pricing study: richezamor.com chatbot widget productization",
+    "description": "If we were to productize the richezamor.com chatbot widget + SIA knowledge layer as a B2B offering (embed-a-knowledge-chatbot-for-your-site), how should we price it? Benchmark similar offerings, recommend tiers.",
+    "labels": ["type:analyst", "rzcom"],
+    "app_id": "rzcom"
+  },
+  "expected_output_structure": [
+    "# Pricing study —",
+    "## What we're pricing",
+    "## Market benchmark",
+    "## Packaging patterns observed",
+    "## Willingness-to-pay signals",
+    "## Value metric recommendation",
+    "## Recommended pricing",
+    "## Rollout considerations",
+    "## Risks",
+    "## Sources",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "market_benchmark_competitors_min_count": 3,
+    "every_benchmark_has_public_price_or_noted_as_contact": true,
+    "value_metric_is_single_recommendation_with_justification": true,
+    "tier_count_between_2_and_4": true,
+    "risks_section_names_at_least_3_risks": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Are 3+ benchmark competitors cited with public price points (not just 'similar products exist')?",
+    "Is the recommended value metric ONE thing (not 'depends'), with justification?",
+    "Is tier structure 2–4 tiers (not 'enterprise menu' sprawl, not single flat price)?",
+    "Does risks section include under-pricing, over-pricing, AND packaging confusion?",
+    "Does rollout section consider existing-customer treatment if pricing changes?"
+  ],
+  "success_criteria": "3+ benchmarks + single value-metric recommendation + 2–4 tiers + 3+ risks + confidence label"
+}

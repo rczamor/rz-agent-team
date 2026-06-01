@@ -1,0 +1,44 @@
+{
+  "skill": "rz-ux-researcher-persona",
+  "description": "Routine should produce a persona grounded in research with all 3 goal types, behavioral variables (not demographics), anti-persona, evidence-to-claim map.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-010",
+    "title": "Build primary persona for Recipe Remix based on beta survey + 7 interviews",
+    "description": "Survey (n=42) + 7 interviews completed. Build the primary persona: who is the Recipe Remix core user? Include anti-persona.",
+    "labels": ["type:ux", "recipe-remix"],
+    "app_id": "recipe-remix"
+  },
+  "expected_output_structure": [
+    "# Persona —",
+    "**Evidence base:**",
+    "## Who they are",
+    "## A day in their life",
+    "## Behaviors",
+    "## Motivations",
+    "## Constraints",
+    "## Jobs-to-be-done",
+    "## Representative quotes",
+    "## Anti-persona",
+    "## Design implications",
+    "## Success signals",
+    "## Evidence-to-claim map",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "motivations_cover_functional_emotional_social": true,
+    "jobs_format_is_when_i_i_want_to_so_i_can": true,
+    "behavioral_variables_beat_demographics": true,
+    "anti_persona_section_non_empty": true,
+    "evidence_to_claim_map_non_empty": true,
+    "representative_quotes_anonymized": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Does the persona have all 3 motivation types (functional, emotional, social)?",
+    "Are JTBD statements in canonical 'when I ... I want to ... so I can ...' form?",
+    "Are behavioral variables the discriminator (not age/gender as primary)?",
+    "Is there an anti-persona (who this is NOT) section, non-empty?",
+    "Does evidence-to-claim map trace every non-trivial claim to a source?"
+  ],
+  "success_criteria": "3 motivation types + canonical JTBD + behavioral variables + anti-persona + evidence map + confidence label"
+}

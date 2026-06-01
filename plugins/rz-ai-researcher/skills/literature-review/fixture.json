@@ -1,0 +1,42 @@
+{
+  "skill": "rz-ai-researcher-literature-review",
+  "description": "Routine should produce a literature review with taxonomy (3+ families), recent highlights with details, consensus + contested sections, portfolio implications, recommended follow-ups (distinguishing type:research vs type:engineering).",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-016",
+    "title": "Lit review: state of the art in long-context retrieval for LLMs (2024–2026)",
+    "description": "Survey the field: what are the current approaches for retrieval when the relevant context is long (documents, codebases, chat logs)? Organize by family, pick 3–5 recent highlights, identify consensus and contested areas, imply for SIA.",
+    "labels": ["type:research", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Literature review —",
+    "## Executive summary",
+    "## Taxonomy",
+    "## Recent highlights (last 12 months)",
+    "## Common benchmarks + leaderboards",
+    "## What everyone agrees on",
+    "## What's contested",
+    "## What's missing / gaps",
+    "## Implications for Riché's portfolio",
+    "## Recommended follow-ups",
+    "## Sources",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "taxonomy_families_min_count": 3,
+    "recent_highlights_count_between_3_and_5": true,
+    "agrees_and_contested_both_non_empty": true,
+    "implications_name_specific_apps": true,
+    "follow_ups_distinguish_type_research_from_type_engineering": true,
+    "sources_not_dump_but_organized": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Does the taxonomy organize the field into 3+ approach families (not a flat list of papers)?",
+    "Are 3–5 recent highlights covered with paper + contribution + result + 'why it matters to us' — not a link dump?",
+    "Are BOTH 'agrees on' AND 'contested' sections non-empty (a healthy review surfaces both)?",
+    "Do recommended follow-ups correctly distinguish type:research (deeper method eval / ablation) from type:engineering (AI Eng implementation)?",
+    "Does 'Implications' name specific apps (e.g., SIA), not just 'our AI systems'?"
+  ],
+  "success_criteria": "3+ taxonomy families + 3–5 highlights with detail + consensus + contested + specific implications + correctly-routed follow-ups"
+}

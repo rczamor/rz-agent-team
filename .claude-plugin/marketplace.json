@@ -1,0 +1,35 @@
+{
+  "name": "rz-agent-team",
+  "metadata": {
+    "description": "Riché Zamor's agent team plugins — 4 strategic routines (Technical Architect, Analyst, User Researcher, AI Researcher) that fire via Claude Code Routines when Linear tickets transition to 'Ready for Claude routines'."
+  },
+  "owner": {
+    "name": "Riché Zamor"
+  },
+  "plugins": [
+    {
+      "name": "rz-architect",
+      "description": "Technical Architect strategic routine. Produces ADRs, integration designs, architecture reviews, and tech stack evaluations in Notion. Fires on type:architect label.",
+      "category": "agent-team",
+      "source": "./plugins/rz-architect"
+    },
+    {
+      "name": "rz-analyst",
+      "description": "Analyst strategic routine. Produces competitive matrices, market analysis briefs, pricing/packaging studies, and opportunity briefs in Notion. Fires on type:analyst label.",
+      "category": "agent-team",
+      "source": "./plugins/rz-analyst"
+    },
+    {
+      "name": "rz-ux-researcher",
+      "description": "User Researcher strategic routine. Produces interview synthesis, personas, journey maps, and usability audits in Notion. Fires on type:ux label.",
+      "category": "agent-team",
+      "source": "./plugins/rz-ux-researcher"
+    },
+    {
+      "name": "rz-ai-researcher",
+      "description": "AI Researcher strategic routine. Produces method evaluations, eval specs, ablation study designs, and literature reviews. Fires on type:research label. Feeds AI Engineer execution agent.",
+      "category": "agent-team",
+      "source": "./plugins/rz-ai-researcher"
+    }
+  ]
+}

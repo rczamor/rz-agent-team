@@ -1,0 +1,39 @@
+{
+  "skill": "rz-analyst-competitive-matrix",
+  "description": "Routine should produce a feature-by-feature comparison of 3+ competitors with positioning map, white-space analysis, direct threats ranked, and confidence label.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-005",
+    "title": "Competitive landscape: personal AI knowledge systems",
+    "description": "Analyze the competitive landscape for personal AI knowledge systems. SIA is in this space. Cover at least: Mem.ai, Notion AI, Reflect, and one open-source option (e.g., PrivateGPT or Khoj). Positioning, features, pricing, target segment.",
+    "labels": ["type:analyst", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Competitive matrix —",
+    "## Competitors evaluated",
+    "## Feature comparison",
+    "## Positioning map",
+    "## White space",
+    "## Direct competitive threats (ranked)",
+    "## Our positioning implications",
+    "## Sources",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "competitors_evaluated_min_count": 3,
+    "competitors_evaluated_max_count": 7,
+    "feature_table_has_no_empty_cells": true,
+    "positioning_map_has_two_axes": true,
+    "threats_are_ranked_not_listed": true,
+    "sources_cited_with_urls": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Are 3–7 competitors evaluated (not fewer, not a messy dump of 15)?",
+    "Does every cell in the feature comparison have a verifiable value (not '?' everywhere)?",
+    "Does the positioning map have two distinct axes (not just one dimension)?",
+    "Are direct threats ranked 1/2/3 with reasoning?",
+    "Does 'positioning implications' include both what to emphasize AND what to de-emphasize?"
+  ],
+  "success_criteria": "3–7 competitors + both axes present + ranked threats + dual-direction implications + confidence label"
+}

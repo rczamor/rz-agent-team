@@ -3,3 +3,16 @@
 id_*
 hostinger_vps*
 .DS_Store
+.secrets
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Local workspace state — not for the repo
+.claude/
+.playwright-mcp/
+.scratch/
+
+# Nested clone of rz-agent-team used for the deployable artifact — its own git repo
+repo/

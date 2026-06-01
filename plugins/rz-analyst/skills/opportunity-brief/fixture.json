@@ -1,0 +1,43 @@
+{
+  "skill": "rz-analyst-opportunity-brief",
+  "description": "Routine should produce a sized opportunity brief with one of 4 recommendations, specific success numbers, 5-dimension readiness, and explicit decision request to Riché.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-008",
+    "title": "Opportunity: should Ploppy pursue enterprise tier?",
+    "description": "Ploppy prototype is getting traction with individual users. Small number of enterprise inquiries about 'does this work for teams?' Should we build an enterprise tier now, defer, or explicitly pass? Size it, recommend.",
+    "labels": ["type:analyst", "ploppy"],
+    "app_id": "ploppy"
+  },
+  "expected_output_structure": [
+    "# Opportunity brief —",
+    "**Recommendation:** Pursue | Pursue narrow | Defer | Pass",
+    "## Executive summary",
+    "## Problem",
+    "## Current alternatives",
+    "## Solution direction",
+    "## Size",
+    "## Readiness",
+    "## Competitive dynamics",
+    "## Strategic fit",
+    "## Recommendation",
+    "## Risks",
+    "## Decision needed from Riché",
+    "## Sources",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "recommendation_is_one_of_four": ["Pursue", "Pursue narrow", "Defer", "Pass"],
+    "size_attempts_specific_numbers": true,
+    "readiness_has_5_dimensions_color_coded": true,
+    "decision_request_is_specific_yes_no_or_option": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Is the recommendation singular (Pursue/Pursue narrow/Defer/Pass), not a hedge?",
+    "Does 'Size' section commit to specific numbers, even if with uncertainty bands?",
+    "Does 'Readiness' cover all 5 dimensions (product/distribution/monetization/team/timing) with colors?",
+    "Is 'Decision needed from Riché' a specific yes/no or named-option choice, not a vague 'should we think about this?'",
+    "If recommendation is 'Pass', is there a 'what would change our mind' trigger named?"
+  ],
+  "success_criteria": "Singular recommendation + specific size numbers + 5 readiness dimensions + specific decision request"
+}

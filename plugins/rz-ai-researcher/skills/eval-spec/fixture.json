@@ -1,0 +1,42 @@
+{
+  "skill": "rz-ai-researcher-eval-spec",
+  "description": "Routine should produce an eval spec with rubric (3+ dimensions with anchor points), dataset methodology, judge model details if LLM-as-judge, failure modes, calibration plan.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-014",
+    "title": "Eval spec: SIA consolidation output quality",
+    "description": "Design an eval for SIA's consolidation pipeline (N raw sources → one consolidated note). Need a rubric that's defensible, a dataset plan, and a judge methodology. Block downstream AI Engineer work on this spec.",
+    "labels": ["type:research", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Eval spec —",
+    "## What we're measuring",
+    "## Why this eval matters",
+    "## Rubric",
+    "## Dataset",
+    "## Methodology",
+    "## Success criteria",
+    "## Failure modes to watch for",
+    "## Calibration plan",
+    "## Implementation handoff",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "rubric_dimensions_min_count": 3,
+    "each_dimension_has_anchor_points_at_5_3_1": true,
+    "overall_score_is_gated_or_weighted_with_rationale": true,
+    "dataset_commits_to_size_and_ground_truth_method": true,
+    "if_llm_judge_specifies_model_and_prompt": true,
+    "failure_modes_section_non_empty": true,
+    "calibration_plan_specifies_agreement_threshold": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Are there 3+ rubric dimensions with concrete anchor points at scores 5, 3, and 1 (not vague adjectives)?",
+    "Is the overall scoring method explicitly gated or weighted, with reasoning — not left ambiguous?",
+    "Does the dataset section commit to a size AND a ground-truth methodology (human / LLM-as-judge / synthetic)?",
+    "If LLM-as-judge, is the judge model named + prompt pasted (not 'some LLM will judge')?",
+    "Does the calibration plan specify a target agreement threshold (e.g., Cohen's κ ≥ 0.7)?"
+  ],
+  "success_criteria": "3+ dimensions with anchors + gated/weighted stated + dataset commitment + judge specifics + calibration threshold"
+}

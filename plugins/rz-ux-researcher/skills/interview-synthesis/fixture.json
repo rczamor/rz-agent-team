@@ -1,0 +1,39 @@
+{
+  "skill": "rz-ux-researcher-interview-synthesis",
+  "description": "Routine should produce themed synthesis from N interview transcripts with confidence per theme, anonymized quotes, discarded-themes section, and surprises.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-009",
+    "title": "Synthesize 5 SIA user interviews on knowledge-capture workflow",
+    "description": "5 interview transcripts linked from this ticket (fake URLs for fixture). Users describe how they currently capture + retrieve knowledge for Riché-like work. Synthesize themes, quote evidence, name what surprised us.",
+    "labels": ["type:ux", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# Interview synthesis —",
+    "## Methodology",
+    "## Themes (ranked by strength)",
+    "## Discarded themes",
+    "## Surprises",
+    "## Gaps",
+    "## Anonymization note",
+    "## Sources",
+    "## Confidence:"
+  ],
+  "expected_output_fields": {
+    "themes_count_between_3_and_6": true,
+    "every_theme_has_confidence_label": true,
+    "every_theme_has_2plus_anonymized_quotes_from_different_people": true,
+    "discarded_themes_section_non_empty": true,
+    "surprises_section_non_empty": true,
+    "no_full_names_emails_phone_numbers_in_quotes": true,
+    "confidence_label_present": true
+  },
+  "smoke_questions": [
+    "Are 3–6 themes presented (not a firehose of 15)?",
+    "Does every theme have at least 2 supporting quotes from different people?",
+    "Are all quotes fully anonymized (no names, companies, emails)?",
+    "Is there a 'discarded themes' section, demonstrating the routine actually pruned?",
+    "Are there genuine surprises named, not just confirmation of assumptions?"
+  ],
+  "success_criteria": "3–6 themes + 2+ quotes per theme + anonymization verified + discarded + surprises sections non-empty"
+}

@@ -1,0 +1,36 @@
+{
+  "skill": "rz-architect-adr-author",
+  "description": "Smoke-test fixture. A routine should produce an ADR with all required sections, 2+ options considered, and a concrete recommendation.",
+  "input_ticket": {
+    "identifier": "CAR-EVAL-001",
+    "title": "Choose embedding store for SIA beyond pgvector",
+    "description": "SIA currently uses Neon Postgres + pgvector for embeddings. As the corpus grows past 1M chunks, query latency is climbing. Evaluate whether to stay on pgvector (tune indexes, partition) or migrate to a dedicated vector DB (Qdrant, LanceDB, Pinecone). Decide and document.",
+    "labels": ["type:architect", "sia"],
+    "app_id": "sia"
+  },
+  "expected_output_structure": [
+    "# ADR-{n} — {title}",
+    "**Status:**",
+    "**Target app(s):**",
+    "## Context",
+    "## Decision",
+    "## Options considered",
+    "## Recommendation",
+    "## Consequences",
+    "## References"
+  ],
+  "expected_output_fields": {
+    "options_considered_min_count": 2,
+    "consequences_mentions_both_positive_and_negative": true,
+    "cites_triggering_ticket": true,
+    "status_is_one_of": ["Proposed", "Accepted"]
+  },
+  "smoke_questions": [
+    "Does the ADR state a single decision in one paragraph, not a hedge?",
+    "Does each option have a commit on cost/complexity (low/med/high)?",
+    "Is the recommendation grounded in the context forces stated, not in abstract best practices?",
+    "Are at least two negative consequences named honestly?",
+    "Is there a revisit criterion stated (what would make us reopen this ADR)?"
+  ],
+  "success_criteria": "All structure sections present + all 5 smoke questions 'yes' + no hallucinated Linear ticket IDs or Notion URLs"
+}

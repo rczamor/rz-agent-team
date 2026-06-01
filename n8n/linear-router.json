@@ -1,0 +1,924 @@
+{
+  "name": "Linear Router \u2014 Routines + Paperclip",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "linear-router",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "16714374-4afb-419c-b485-5365810b1ebd",
+      "name": "Linear Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        272
+      ],
+      "webhookId": "linear-router"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedup on issueId + updatedAt. Uses workflow static data so retries don't double-fire.\n// Linear webhooks arrive wrapped: { headers, body: { action, data, ... } }. Unwrap .body;\n// fall back to raw json for manual test calls or upstream nodes that already unwrapped.\nconst payload = $input.first().json.body || $input.first().json;\nconst action = payload.action;\nconst issue = payload.data || {};\nconst issueId = issue.id;\nconst updatedAt = issue.updatedAt;\nconst stateName = issue.state?.name;\nconst labels = (issue.labels || []).map(l => l.name);\nconst appLabel = labels.find(l => !l.startsWith('type:')) || 'global';\nconst typeLabel = labels.find(l => l.startsWith('type:')) || null;\n\n// Only operate on issue events whose current state is one of our trigger statuses.\n// Accept both 'update' (status moved INTO a trigger state) and 'create' (ticket\n// filed already IN a trigger state — e.g., via Linear API with state pre-set).\n// Dedup below keys on issueId:updatedAt so retries never double-fire.\nconst triggerStatuses = new Set(['Ready for Claude routines', 'Ready for agent build']);\nif ((action !== 'update' && action !== 'create') || !triggerStatuses.has(stateName)) {\n  return [{ json: { skip: true, reason: 'not-a-trigger-event', action, stateName } }];\n}\n\n// Dedup\nconst staticData = $getWorkflowStaticData('global');\nstaticData.seen = staticData.seen || {};\nconst key = `${issueId}:${updatedAt}`;\nif (staticData.seen[key]) {\n  return [{ json: { skip: true, reason: 'duplicate', key } }];\n}\n// Prune: keep only last 500 entries\nconst keys = Object.keys(staticData.seen);\nif (keys.length > 500) {\n  keys.slice(0, keys.length - 500).forEach(k => delete staticData.seen[k]);\n}\nstaticData.seen[key] = Date.now();\n\nreturn [{\n  json: {\n    skip: false,\n    issueId,\n    issueIdentifier: issue.identifier,\n    issueTitle: issue.title,\n    issueDescription: issue.description || '',\n    issueUrl: issue.url,\n    updatedAt,\n    stateName,\n    typeLabel,\n    appLabel,\n    allLabels: labels,\n  }\n}];"
+      },
+      "id": "fe290062-3333-422b-a509-7dacc813c7cc",
+      "name": "Dedup + Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c7a05ff0-c8c2-403b-871d-324b143e2985",
+      "name": "If not skipped",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1328,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-routine",
+                    "leftValue": "={{ $json.stateName }}",
+                    "rightValue": "Ready for Claude routines",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "routine"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-paperclip",
+                    "leftValue": "={{ $json.stateName }}",
+                    "rightValue": "Ready for agent build",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "paperclip"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "2068d839-4a1e-4188-b18f-e03cfdebde9f",
+      "name": "Switch on status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1104,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map type:* label to the routine fire endpoint + bearer token env var.\nconst input = $input.first().json;\nconst typeLabel = input.typeLabel;\n\nconst routines = {\n  'type:architect':  { url: $env.ROUTINE_ARCHITECT_URL,  token: $env.ROUTINE_ARCHITECT_TOKEN,  name: 'Technical Architect' },\n  'type:analyst':    { url: $env.ROUTINE_ANALYST_URL,    token: $env.ROUTINE_ANALYST_TOKEN,    name: 'Analyst' },\n  'type:ux':         { url: $env.ROUTINE_UX_URL,         token: $env.ROUTINE_UX_TOKEN,         name: 'User Researcher' },\n  'type:research':   { url: $env.ROUTINE_RESEARCH_URL,   token: $env.ROUTINE_RESEARCH_TOKEN,   name: 'AI Researcher' },\n};\n\nconst routine = routines[typeLabel];\nif (!routine || !routine.url) {\n  throw new Error(`No routine configured for label ${typeLabel}`);\n}\n\nconst firePayloadText = `Linear ticket ${input.issueIdentifier}: ${input.issueTitle}\\n\\n${input.issueDescription}\\n\\nLabels: ${input.allLabels.join(', ')}\\nApp: ${input.appLabel}\\nURL: ${input.issueUrl}`;\n\nreturn [{\n  json: {\n    ...input,\n    routineName: routine.name,\n    routineUrl: routine.url,\n    routineToken: routine.token,\n    firePayload: { text: firePayloadText },\n    firePayloadText,\n  }\n}];"
+      },
+      "id": "350763b5-fc38-4779-ae1b-4f24dbaa4665",
+      "name": "Pick routine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        128
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.routineUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.routineToken }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "anthropic-beta",
+              "value": "experimental-cc-routine-2026-04-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.firePayload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d6819e59-7b54-482a-9af2-809d7b060dfe",
+      "name": "Fire routine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -656,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify Fire routine response. Returns { outcome } where outcome is 'ok' | 'capped' | 'failed'.\n// Response shape from https://code.claude.com/docs/en/routines#trigger-a-routine is:\n//   { type: 'routine_fire', claude_code_session_id: '...', claude_code_session_url: '...' }\nconst pickInput = $('Pick routine').item.json;\nconst resp = $input.first().json;\nconst status = resp.statusCode || resp.status || 0;\nconst body = resp.body || resp;\n\nlet outcome;\nif (status >= 200 && status < 300) outcome = 'ok';\nelse if (status === 429) outcome = 'capped';\nelse outcome = 'failed';\n\nreturn [{\n  json: {\n    ...pickInput,\n    outcome,\n    statusCode: status,\n    responseBody: body,\n    claude_code_session_id: body?.claude_code_session_id || null,\n    claude_code_session_url: body?.claude_code_session_url || null,\n  }\n}];"
+      },
+      "id": "08de4673-5b0c-431b-b2a2-755c5ac82a6d",
+      "name": "Classify fire response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-ok",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "ok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ok"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-capped",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "capped",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "capped"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-failed",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "failed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ef5ec785-1c18-4d70-b121-241049e8679e",
+      "name": "Switch fire outcome",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -224,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `\u2699 ${$json.routineName} routine fired.\\n\\nSession: ${$json.claude_code_session_url || 'pending'}\\nSession ID: ${$json.claude_code_session_id || 'pending'}\\n\\n(Langfuse trace URL will be posted by the routine itself on completion.)`\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "1c517c3f-71e4-4961-84f8-8fa7d1fa7731",
+      "name": "Comment \u2014 routine fired",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 429 path: append to deferred_fires static data for the drainer workflow to pick up tomorrow.\nconst input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\nstaticData.deferred_fires = staticData.deferred_fires || [];\n\nconst entry = {\n  issueId: input.issueId,\n  issueIdentifier: input.issueIdentifier,\n  issueTitle: input.issueTitle,\n  issueDescription: input.issueDescription,\n  issueUrl: input.issueUrl,\n  typeLabel: input.typeLabel,\n  appLabel: input.appLabel,\n  allLabels: input.allLabels,\n  routineName: input.routineName,\n  routineUrl: input.routineUrl,\n  routineToken: input.routineToken,\n  firePayloadText: input.firePayloadText,\n  deferredAt: Date.now(),\n};\nstaticData.deferred_fires.push(entry);\n\nreturn [{ json: { ...input, deferredQueueSize: staticData.deferred_fires.length } }];"
+      },
+      "id": "468e2644-7c29-47bb-84df-5932c38fbfe9",
+      "name": "Defer fire (append to queue)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $json.issueId,\n    body: `\ud83d\udd50 ${$json.routineName} routine fire deferred \u2014 15/day Max plan cap reached. Will retry at 00:05 UTC via the deferred-fire drainer. Queue size: ${$json.deferredQueueSize}.`\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "0851b442-3876-47ef-aa9f-0e77ff4c721c",
+      "name": "Comment \u2014 deferred",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "=\ud83d\udd50 Routine fire deferred (15/day cap reached).\nIssue: {{ $json.issueIdentifier }} \u2014 {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nQueue size: {{ $json.deferredQueueSize }}\nWill retry at next 00:05 UTC drainer cycle.",
+        "otherOptions": {}
+      },
+      "id": "0c16debe-cce9-4b72-8aae-3d00695b22e7",
+      "name": "Slack \u2014 deferred",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        144
+      ],
+      "webhookId": "6ec26bb1-acff-4a9d-8a54-70cede50ea91",
+      "credentials": {
+        "slackApi": {
+          "id": "1Iv0Fuumdlb06Xq2",
+          "name": "Slack \u2014 agent-team bot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#agent-team",
+          "mode": "name",
+          "cachedResultName": "agent-team"
+        },
+        "text": "=\u274c Routine fire failed (non-429 error).\nIssue: {{ $json.issueIdentifier }} \u2014 {{ $json.issueTitle }}\nRoutine: {{ $json.routineName }}\nStatus: {{ $json.statusCode }}\nBody: {{ JSON.stringify($json.responseBody).slice(0, 500) }}",
+        "otherOptions": {}
+      },
+      "id": "e0a24fd4-eed2-4758-b804-131495460db2",
+      "name": "Slack \u2014 fire failed",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        288
+      ],
+      "webhookId": "eb1f5af3-d362-4b9f-ae25-dc41b8647a74",
+      "credentials": {
+        "slackApi": {
+          "id": "1Iv0Fuumdlb06Xq2",
+          "name": "Slack \u2014 agent-team bot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// List Paperclip labels via n8n's this.helpers.httpRequest instead of the\n// HTTP Request node. Reason: n8n 2.13.4's HTTP Request v4.2 auto-splits a\n// JSON-array response into N items. When Paperclip returns `[]` (no labels\n// yet), N=0 and every downstream node is skipped \u2014 `Resolve linear label`\n// never runs, `Create linear label` never fires, and the first-seen ticket\n// silently drops. A Code node always emits whatever it returns, independent\n// of response shape.\nconst input = $input.first() ? $input.first().json : {};\nconst url = `${$env.PAPERCLIP_API_URL}/api/companies/${$env.PAPERCLIP_COMPANY_ID}/labels`;\nlet labels = [];\nlet statusCode = 0;\nlet error = null;\ntry {\n  const body = await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    headers: { 'Authorization': `Bearer ${$env.PAPERCLIP_API_KEY}` },\n    json: true,\n  });\n  statusCode = 200;\n  labels = Array.isArray(body) ? body : (body?.labels || body?.data || []);\n} catch (err) {\n  error = String(err && err.message ? err.message : err);\n  statusCode = (err && err.statusCode) || 0;\n}\nreturn [{\n  json: {\n    ...input,\n    labels,\n    labelsStatusCode: statusCode,\n    labelsError: error,\n  }\n}];"
+      },
+      "id": "e341a428-c886-40d2-9faf-16198c5eb6d5",
+      "name": "List Paperclip labels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Find-or-create the `linear:{identifier}` label in Paperclip.\n// Upstream List Paperclip labels is a Code node that always emits one item.\nconst item = $input.first().json;\nconst labels = Array.isArray(item.labels) ? item.labels : [];\nconst target = `linear:${item.issueIdentifier}`;\nconst match = labels.find(l => l && l.name === target);\nif (match && match.id) {\n  return [{ json: { ...item, linearLabelId: match.id, needsLabelCreate: false } }];\n}\nreturn [{\n  json: {\n    ...item,\n    linearLabelId: null,\n    needsLabelCreate: true,\n    labelCreatePayload: { name: target, color: '#5E6AD2' },\n  }\n}];"
+      },
+      "id": "ca905a91-0f1a-41c8-93fa-cae2a1e59f06",
+      "name": "Resolve linear label",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-create-check",
+              "leftValue": "={{ $json.needsLabelCreate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e0b7b802-8eb8-432f-be7a-961d90219b1f",
+      "name": "If needs label create",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/labels",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.labelCreatePayload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d057496f-2a1a-4834-a98a-5e238e6b5c10",
+      "name": "Create linear label",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -224,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// POST /api/companies/:id/labels returns 201 with { id, name, color, ... }.\n// Re-attach the ticket fields (which the HTTP node's output replaces with the response body)\n// and hand off the new label UUID to `Build Paperclip payload`.\nconst ticket = $('Resolve linear label').item.json;\nconst resp = $input.first().json;\nconst newId = resp?.id || resp?.data?.id;\nif (!newId) {\n  throw new Error(`Create linear label returned no id. Response: ${JSON.stringify(resp).slice(0, 300)}`);\n}\nreturn [{\n  json: {\n    ...ticket,\n    linearLabelId: newId,\n    needsLabelCreate: false,\n  }\n}];"
+      },
+      "id": "54834a43-4729-4e06-94dc-d438f8c5b33b",
+      "name": "Capture new label ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Paperclip task payload.\n// NOTE: Paperclip's createIssueSchema only accepts a narrow set of fields; anything extra\n// is silently dropped. `linear_ticket_id`, `linear_issue_id`, `linear_url`, `app_id`, `labels`\n// are kept here for forward-compat / debugging (they're harmless no-ops today). The Linear ->\n// Paperclip link is actually persisted via `labelIds`, resolved by `Resolve linear label` /\n// `Capture new label ID` upstream.\nconst input = $input.first().json;\n\nconst payload = {\n  linear_ticket_id: input.issueIdentifier,\n  linear_issue_id: input.issueId,\n  linear_url: input.issueUrl,\n  app_id: input.appLabel,\n  title: input.issueTitle,\n  description: input.issueDescription,\n  labels: input.allLabels,\n  labelIds: input.linearLabelId ? [input.linearLabelId] : [],\n};\n\nreturn [{ json: { ...input, paperclipPayload: payload } }];"
+      },
+      "id": "dea5ce45-1dc6-4cbe-b16b-43878f60b595",
+      "name": "Build Paperclip payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PAPERCLIP_API_URL }}/api/companies/{{ $env.PAPERCLIP_COMPANY_ID }}/issues",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PAPERCLIP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.paperclipPayload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a8bcf1b7-72db-4124-93d8-b2c5ce0d4a6d",
+      "name": "Create Paperclip issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.LINEAR_API_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  query: `mutation CommentCreate($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }`,\n  variables: {\n    issueId: $('Build Paperclip payload').item.json.issueId,\n    body: `\u2699 Paperclip issue created for execution layer.\\n\\nIssue ID: ${$json.id || $json.issue_id || $json.paperclip_issue_id || 'see Paperclip'}\\nApp: ${$('Build Paperclip payload').item.json.appLabel}`\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "aa4035ce-656e-437e-994b-5014b77780bc",
+      "name": "Comment \u2014 Paperclip issue created",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, ts: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "36c55250-fda0-4950-a4ec-c518585e4a4c",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        880,
+        272
+      ]
+    }
+  ],
+  "connections": {
+    "Linear Webhook": {
+      "main": [
+        [
+          {
+            "node": "Dedup + Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup + Parse": {
+      "main": [
+        [
+          {
+            "node": "If not skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If not skipped": {
+      "main": [
+        [
+          {
+            "node": "Switch on status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch on status": {
+      "main": [
+        [
+          {
+            "node": "Pick routine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List Paperclip labels",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Paperclip labels": {
+      "main": [
+        [
+          {
+            "node": "Resolve linear label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve linear label": {
+      "main": [
+        [
+          {
+            "node": "If needs label create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If needs label create": {
+      "main": [
+        [
+          {
+            "node": "Create linear label",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Paperclip payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create linear label": {
+      "main": [
+        [
+          {
+            "node": "Capture new label ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture new label ID": {
+      "main": [
+        [
+          {
+            "node": "Build Paperclip payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick routine": {
+      "main": [
+        [
+          {
+            "node": "Fire routine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack \u2014 fire failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fire routine": {
+      "main": [
+        [
+          {
+            "node": "Classify fire response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify fire response": {
+      "main": [
+        [
+          {
+            "node": "Switch fire outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch fire outcome": {
+      "main": [
+        [
+          {
+            "node": "Comment \u2014 routine fired",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Defer fire (append to queue)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack \u2014 fire failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comment \u2014 routine fired": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Defer fire (append to queue)": {
+      "main": [
+        [
+          {
+            "node": "Comment \u2014 deferred",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comment \u2014 deferred": {
+      "main": [
+        [
+          {
+            "node": "Slack \u2014 deferred",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack \u2014 deferred": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack \u2014 fire failed": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Paperclip payload": {
+      "main": [
+        [
+          {
+            "node": "Create Paperclip issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Paperclip issue": {
+      "main": [
+        [
+          {
+            "node": "Comment \u2014 Paperclip issue created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comment \u2014 Paperclip issue created": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
