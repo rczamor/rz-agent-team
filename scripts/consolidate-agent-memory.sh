@@ -137,7 +137,11 @@ WHERE id = $id;
 SQL
     EMBEDDED_COUNT=$((EMBEDDED_COUNT + 1))
   done < <(psqlq <<'SQL'
-SELECT id, decision || E'\n' || rationale
+-- Collapse any CR/LF in the free-text columns to spaces so each row emits
+-- exactly ONE physical line — the read loop below splits on newlines, and an
+-- embedded newline would otherwise truncate the embed text to `decision` only
+-- and drop `rationale` (with a spurious "empty embedding" warning).
+SELECT id, regexp_replace(decision || ' ' || rationale, '[\r\n]+', ' ', 'g')
 FROM agent_memory.decisions
 WHERE embedding IS NULL
 ORDER BY decided_at DESC
