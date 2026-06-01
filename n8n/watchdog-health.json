@@ -45,7 +45,7 @@
       "position": [200, 0],
       "credentials": {
         "httpBasicAuth": {
-          "id": "REPLACE-WITH-LANGFUSE-BASIC-AUTH-CRED-ID",
+          "id": "0Z9xFkgT8NynxAmN",
           "name": "Langfuse public API — PK/SK"
         }
       }
@@ -101,7 +101,7 @@
       "position": [800, 0],
       "credentials": {
         "slackApi": {
-          "id": "REPLACE-WITH-SLACK-CRED-ID",
+          "id": "1Iv0Fuumdlb06Xq2",
           "name": "Slack — agent-team bot"
         }
       },
