@@ -1,0 +1,15 @@
+[Unit]
+Description=Agent fire-bridge (n8n -> OpenClaw dispatcher connector)
+After=docker.service network-online.target
+Wants=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/sbin/agent-fire-bridge.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/agent-fire-bridge.log
+StandardError=append:/var/log/agent-fire-bridge.log
+
+[Install]
+WantedBy=multi-user.target
