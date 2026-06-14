@@ -30,7 +30,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._reply(200, "ok")
         self._reply(404, "not found")
     def do_POST(self):
-        if not hmac.compare_digest(self.headers.get("X-Fire-Token", ""), TOKEN):
+        # compare as bytes — compare_digest on str raises TypeError for non-ASCII input
+        if not hmac.compare_digest(self.headers.get("X-Fire-Token", "").encode(), TOKEN.encode()):
             return self._reply(403, "forbidden")
         if self.path != "/fire":
             return self._reply(404, "not found")
