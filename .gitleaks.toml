@@ -44,11 +44,11 @@ tags = ["key", "linear"]
 
 [allowlist]
 paths = [
-  '''(.*/)?\.env\.local\.example$''',           # template shows placeholder shapes
-  '''(.*/)?\.env\.example$''',
-  '''(.*/)?plugins/ROUTINE_SETUP\.md$''',       # docs intentionally show example token shapes
-  '''(.*/)?n8n/README\.md$''',                   # same — setup docs
-  '''(.*/)?deploy/README\.md$''',
+  '''(.*/)?\.env\.local\.example$''',           # template — placeholder shapes only
+  '''(.*/)?\.env\.example$''',                  # template — placeholder shapes only
+  # NOTE: docs (READMEs, ROUTINE_SETUP) are deliberately NOT whole-file allowlisted —
+  # a real secret accidentally pasted into them must still be caught. Their example
+  # token shapes are covered by the placeholder regexes below instead.
 ]
 regexes = [
   '''sk-ant-api03-\.\.\.''',      # doc placeholder
@@ -58,4 +58,5 @@ regexes = [
   '''sk-lf-\.\.\.''',             # doc placeholder
   '''lin_api_\.\.\.''',           # doc placeholder
   '''xoxb-\.\.\.''',              # doc placeholder
+  '''(REPLACE-ME|REPLACE_ME|CHANGEME|CHANGE-ME)''',   # generic env/doc placeholders
 ]

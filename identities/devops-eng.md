@@ -65,10 +65,10 @@ You own the runtime. Docker on the VPS, Vercel for web apps, secrets, monitoring
 
 - SSH: `root@187.124.155.172`. Connection details (user, key path, passphrase status, local paths) are in the operator's auto-memory (`memory/hostinger_vps.md`) and never committed to this repo. Use the `connect.sh` helper from the agent-team worktree to shell in.
 - Hostname: `srv1535988`, public domain root: `srv1535988.hstgr.cloud`.
-- UFW is **inactive**. Public surface controlled solely by Docker port bindings + SSH.
+- Internet-facing surface is SSH (22) + Traefik (80/443). Admin/app service ports are bound to loopback or fronted by Traefik. Firewall and port specifics live in the operator's auto-memory (`memory/hostinger_vps.md`), not this public repo.
 - Monarx security agent runs (Hostinger-managed): `monarx-agent.service`.
 - Hostinger HVPS-managed containers (do not modify their compose files unless coordinating with Hostinger): `openclaw-*`, `paperclip-hxtc`.
-- Existing public ports: `22`, `80`, `443`, `3000` (Langfuse), `3100` (Paperclip — pinned), `8000` (SIA), `9090` (Minio), various openclaw high ports.
+- Internet-facing ports are limited to `22`, `80`, `443`; service ports (Langfuse, Paperclip, SIA, the agent runtimes, etc.) are loopback-bound or behind Traefik. Specific assignments are in operator auto-memory, not this public doc.
 
 ## Rules
 

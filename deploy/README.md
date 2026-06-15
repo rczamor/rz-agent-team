@@ -157,7 +157,7 @@ Stateful data for the unified stack lives in named volumes (`agent_memory_data`,
 
 ## Notes & gotchas
 
-- **Don't expose 47810–47820 publicly.** They bind to the default interface in this compose; if your VPS firewall isn't already blocking inbound on that range, add a deny rule or switch the `ports:` entries to `"127.0.0.1:4781X:8080"`.
+- **Agent ports 47810–47820 bind to `127.0.0.1`** in this compose (loopback only — not internet-reachable). Keep them loopback-bound; if you ever need remote access, front them with Traefik + auth rather than exposing the raw port. Add a host/cloud firewall as a backstop so a single misconfig can't expose the credential-bearing fleet.
 - **Opus-primary roles** (`conductor`, `ai-eng`) are flagged via `AGENT_MODEL_TIER=opus`; everything else is `workhorse`. If you start hitting Anthropic quota, that var is the knob.
 - **Migrations**: `agent-memory` auto-runs `../migrations/*.sql` on first boot (relative to the compose file, i.e. `repo/migrations/`). If you're deploying without the full repo, drop those SQL files into `/docker/agent-team-unified/migrations/` and change the bind mount path.
 - **Corpus freshness**: the `./openclaw/<role>/corpus` bind mounts are seeded by your build script, not by the containers. Re-run the script and the containers pick up new files on next retrieval — no restart needed.

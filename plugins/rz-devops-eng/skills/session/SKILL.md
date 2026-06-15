@@ -105,7 +105,7 @@ DevOps-specific:
 | `recipe-remix` | Vercel | Vercel |
 | Other prototypes | Vercel or VPS subdomain | Per-prototype |
 
-**VPS facts** (current): SSH details in operator auto-memory (`memory/hostinger_vps.md`); hostname `srv1535988`; public ports `22, 80, 443, 3000 (Langfuse), 3100 (Paperclip), 8000 (SIA), 9090 (Minio)`; RAM budget 16 GB (headroom ~7 GB).
+**VPS facts** (current): SSH + full port/firewall details in operator auto-memory (`memory/hostinger_vps.md`); internet-facing surface limited to `22, 80, 443` (SSH + Traefik), service ports loopback-bound or behind Traefik; RAM budget 16 GB (headroom ~7 GB).
 
 ### 3. Handoff / close
 

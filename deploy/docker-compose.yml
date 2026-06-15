@@ -102,7 +102,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-conductor
     ports:
-      - "47810:8080"
+      - "127.0.0.1:47810:8080"
     volumes:
       - ./openclaw/conductor/data:/data
       - ./openclaw/conductor/corpus:/data/.openclaw/workspace/corpus
@@ -126,7 +126,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-pm
     ports:
-      - "47811:8080"
+      - "127.0.0.1:47811:8080"
     volumes:
       - ./openclaw/pm/data:/data
       - ./openclaw/pm/corpus:/data/.openclaw/workspace/corpus
@@ -150,7 +150,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-growth
     ports:
-      - "47812:8080"
+      - "127.0.0.1:47812:8080"
     volumes:
       - ./openclaw/growth/data:/data
       - ./openclaw/growth/corpus:/data/.openclaw/workspace/corpus
@@ -176,7 +176,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-designer
     ports:
-      - "47813:8080"
+      - "127.0.0.1:47813:8080"
     volumes:
       - ./openclaw/designer/data:/data
       - ./openclaw/designer/corpus:/data/.openclaw/workspace/corpus
@@ -200,7 +200,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-backend-eng
     ports:
-      - "47814:8080"
+      - "127.0.0.1:47814:8080"
     volumes:
       - ./openclaw/backend-eng/data:/data
       - ./openclaw/backend-eng/corpus:/data/.openclaw/workspace/corpus
@@ -224,7 +224,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-data-eng
     ports:
-      - "47815:8080"
+      - "127.0.0.1:47815:8080"
     volumes:
       - ./openclaw/data-eng/data:/data
       - ./openclaw/data-eng/corpus:/data/.openclaw/workspace/corpus
@@ -248,7 +248,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-ai-eng
     ports:
-      - "47816:8080"
+      - "127.0.0.1:47816:8080"
     volumes:
       - ./openclaw/ai-eng/data:/data
       - ./openclaw/ai-eng/corpus:/data/.openclaw/workspace/corpus
@@ -272,7 +272,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-ui-eng
     ports:
-      - "47817:8080"
+      - "127.0.0.1:47817:8080"
     volumes:
       - ./openclaw/ui-eng/data:/data
       - ./openclaw/ui-eng/corpus:/data/.openclaw/workspace/corpus
@@ -296,7 +296,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-qa-eng
     ports:
-      - "47818:8080"
+      - "127.0.0.1:47818:8080"
     volumes:
       - ./openclaw/qa-eng/data:/data
       - ./openclaw/qa-eng/corpus:/data/.openclaw/workspace/corpus
@@ -320,7 +320,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-devops-eng
     ports:
-      - "47819:8080"
+      - "127.0.0.1:47819:8080"
     volumes:
       - ./openclaw/devops-eng/data:/data
       - ./openclaw/devops-eng/corpus:/data/.openclaw/workspace/corpus
@@ -344,7 +344,7 @@ services:
     <<: *openclaw-common
     container_name: openclaw-tech-writer
     ports:
-      - "47820:8080"
+      - "127.0.0.1:47820:8080"
     volumes:
       - ./openclaw/tech-writer/data:/data
       - ./openclaw/tech-writer/corpus:/data/.openclaw/workspace/corpus
